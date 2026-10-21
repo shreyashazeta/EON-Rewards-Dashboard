@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Governance Dashboard</title>
+<script src="/js/shell-config.js"></script>
+<style>
+  :root{
+    --bg:#161033; --card:#1f1848;
+    --border:rgba(255,255,255,0.09); --border-strong:rgba(255,255,255,0.16);
+    --ink:#f4f2fb; --ink-2:#b6b0da; --ink-3:#8b84b8;
+    --navy:#2a2160; --navy-dark:#1c1544; --blue:#5eead4; --blue-bg:rgba(94,234,212,0.12);
+    --teal:#5eead4; --amber:#f2b544; --amber-ink:#3a2606;
+    --green:#4ade9b; --red:#ff8f7d;
+    --mono:'SF Mono','Consolas',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{background:#f5f6fa;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden;}
+
+  /* ---- Header ---- */
+  .topbar{
+    height:58px;flex-shrink:0;display:flex;align-items:center;gap:14px;
+    padding:0 20px;background:var(--navy-dark);color:#fff;z-index:40;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .hamburger{
+    width:36px;height:36px;border-radius:9px;border:none;background:rgba(255,255,255,0.07);
+    color:var(--teal);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;transition:background .12s;
+  }
+  .hamburger:hover{background:rgba(94,234,212,0.16);}
+  .topbar-title{font-weight:800;font-size:15.5px;letter-spacing:-0.01em;flex-shrink:0;color:#fff;}
+  .topbar-sep{width:1px;height:22px;background:rgba(255,255,255,0.14);flex-shrink:0;}
+  .topbar-meta{display:flex;align-items:center;gap:16px;font-size:12.5px;color:var(--ink-3);flex:1;min-width:0;}
+  .topbar-meta b{color:var(--teal);font-weight:700;}
+  .topbar-right{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .last-updated{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;}
+  .refresh-btn{
+    display:inline-flex;align-items:center;gap:6px;border:none;
+    background:var(--amber);color:var(--amber-ink);font-size:12.5px;font-weight:800;
+    padding:8px 15px;border-radius:20px;cursor:pointer;white-space:nowrap;
+    box-shadow:0 2px 8px rgba(242,181,68,0.3);transition:transform .1s,box-shadow .1s;
+  }
+  .refresh-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(242,181,68,0.4);}
+  .refresh-btn:disabled{opacity:0.55;cursor:default;transform:none;}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(58,38,6,0.35);border-top-color:var(--amber-ink);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---- Body: drawer + content ---- */
+  .body-row{flex:1;display:flex;min-height:0;position:relative;}
+
+  .drawer-overlay{
+    position:absolute;inset:0;background:rgba(20,15,45,0.25);z-index:29;
+    opacity:0;pointer-events:none;transition:opacity .18s ease;
+  }
+  .drawer-overlay.open{opacity:1;pointer-events:auto;}
+
+  .drawer{
+    position:absolute;top:0;left:0;bottom:0;width:284px;background:var(--navy-dark);
+    color:#fff;z-index:30;transform:translateX(-100%);transition:transform .2s ease;
+    overflow-y:auto;border-right:1px solid rgba(255,255,255,0.08);
+  }
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{padding:22px 20px 14px;font-size:11px;font-weight:800;letter-spacing:0.12em;color:var(--teal);font-family:var(--mono);}
+  .prog-block{margin-bottom:6px;}
+  .prog-name{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:11px 20px;font-weight:700;font-size:14px;cursor:pointer;
+    color:#fff;transition:background .1s;
+  }
+  .prog-name:hover{background:rgba(255,255,255,0.05);}
+  .prog-name .chev{font-size:11px;color:var(--ink-3);transition:transform .15s;}
+  .prog-name.active-program{background:rgba(94,234,212,0.08);}
+  .dash-list{max-height:0;overflow:hidden;transition:max-height .2s ease;}
+  .dash-list.expanded{max-height:260px;}
+  .dash-item{
+    display:flex;align-items:center;gap:9px;padding:9px 20px 9px 38px;
+    font-size:13px;color:var(--ink-2);cursor:pointer;transition:background .1s,color .1s;
+    border-left:3px solid transparent;
+  }
+  .dash-item:hover{background:rgba(255,255,255,0.05);color:#fff;}
+  .dash-item.active{background:rgba(94,234,212,0.1);color:#fff;border-left-color:var(--teal);font-weight:700;}
+  .dash-item .dot{width:6px;height:6px;border-radius:50%;background:#453a7a;flex-shrink:0;}
+  .dash-item.active .dot{background:var(--teal);}
+  .dash-item.disabled{color:#5a5285;cursor:default;}
+  .dash-item.disabled:hover{background:none;color:#5a5285;}
+  .add-program{
+    display:flex;align-items:center;gap:8px;padding:14px 20px;margin-top:8px;
+    font-size:12.5px;color:var(--ink-3);border-top:1px solid rgba(255,255,255,0.08);cursor:default;
+  }
+
+  /* ---- Content ---- */
+  .content{flex:1;min-width:0;position:relative;background:#eef0f4;}
+  .content iframe{width:100%;height:100%;border:none;display:block;}
+  .not-connected{
+    height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:40px;color:#5c5f75;background:#f5f6fa;
+  }
+  .not-connected .badge{
+    display:inline-block;font-size:11px;font-weight:800;padding:4px 13px;border-radius:20px;
+    background:var(--amber);color:var(--amber-ink);margin-bottom:14px;text-transform:uppercase;letter-spacing:0.05em;
+  }
+  .not-connected h2{font-size:19px;color:#1a1a2e;margin:0 0 8px;}
+  .not-connected p{font-size:13.5px;max-width:420px;margin:0;line-height:1.6;color:#5c5f75;}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">&#9776;</button>
+    <div class="topbar-title"><span style="color:#5eead4;">&#10022;</span> Governance Dashboard</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-meta">
+      <span>Program: <b id="metaProgram">\u2014</b></span>
+      <span>Quarter: <b id="metaQuarter">\u2014</b></span>
+    </div>
+    <div class="topbar-right">
+      <span class="last-updated" id="lastUpdated">Last updated: \u2014</span>
+      <button class="refresh-btn" id="refreshBtn">&#8635; Refresh</button>
+    </div>
+  </div>
+
+  <div class="body-row">
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <div class="drawer" id="drawer">
+      <div class="drawer-head">GOVERNANCE</div>
+      <div id="programList"></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+
+<script src="/js/cache-client.js"></script>
+<script>
+let currentProgramId = null;
+let currentDashboardId = null;
+
+function parseRoute() {
+  // Supports /governance/:programId/:dashboardId, falls back to first program/dashboard.
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  const idx = parts.indexOf('governance');
+  const programId = idx >= 0 && parts[idx+1] ? parts[idx+1] : GOVERNANCE_CONFIG.programs[0].id;
+  const dashboardId = idx >= 0 && parts[idx+2] ? parts[idx+2] : govFindProgram(programId).dashboards[0].id;
+  return { programId, dashboardId };
+}
+
+function navigate(programId, dashboardId, opts = {}) {
+  currentProgramId = programId;
+  currentDashboardId = dashboardId;
+  const path = `/governance/${programId}/${dashboardId}`;
+  if (!opts.skipHistory) {
+    const method = opts.replace ? 'replaceState' : 'pushState';
+    window.history[method]({ programId, dashboardId }, '', path);
+  }
+  renderContent();
+  renderDrawer();
+  updateHeaderMeta();
+  // Drawer intentionally stays open here — selecting a program or a
+  // dashboard should never auto-close it. Only an explicit hamburger
+  // click or clicking the overlay should close it (see toggleDrawer/closeDrawer).
+}
+
+function renderDrawer() {
+  const list = document.getElementById('programList');
+  list.innerHTML = '';
+  GOVERNANCE_CONFIG.programs.forEach(program => {
+    const isActiveProgram = program.id === currentProgramId;
+    const block = document.createElement('div');
+    block.className = 'prog-block';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'prog-name' + (isActiveProgram ? ' active-program' : '');
+    nameEl.innerHTML = `<span>${program.name}</span><span class="chev">${isActiveProgram ? '\u25BC' : '\u25B6'}</span>`;
+    nameEl.addEventListener('click', () => {
+      if (isActiveProgram) {
+        // Toggle collapse for the active program's own list.
+        dashList.classList.toggle('expanded');
+        nameEl.querySelector('.chev').textContent = dashList.classList.contains('expanded') ? '\u25BC' : '\u25B6';
+      } else {
+        navigate(program.id, program.dashboards[0].id);
+      }
+    });
+
+    const dashList = document.createElement('div');
+    dashList.className = 'dash-list' + (isActiveProgram ? ' expanded' : '');
+    program.dashboards.forEach(d => {
+      const item = document.createElement('div');
+      const isActiveDash = isActiveProgram && d.id === currentDashboardId;
+      item.className = 'dash-item' + (isActiveDash ? ' active' : '') + (!d.connected && !d.path ? ' disabled' : '');
+      item.innerHTML = `<span class="dot"></span><span>${d.name}</span>`;
+      item.addEventListener('click', () => navigate(program.id, d.id));
+      dashList.appendChild(item);
+    });
+
+    block.appendChild(nameEl);
+    block.appendChild(dashList);
+    list.appendChild(block);
+  });
+
+  const addProgram = document.createElement('div');
+  addProgram.className = 'add-program';
+  addProgram.innerHTML = '<span>+</span><span>Add Program</span>';
+  addProgram.style.cursor = 'pointer';
+  addProgram.addEventListener('click', () => { window.location.href = '/add-program.html'; });
+  list.appendChild(addProgram);
+
+  const manageProgram = document.createElement('div');
+  manageProgram.className = 'add-program';
+  manageProgram.innerHTML = '<span>⚙</span><span>Manage Programs</span>';
+  manageProgram.style.cursor = 'pointer';
+  manageProgram.addEventListener('click', () => { window.location.href = '/manage-programs.html'; });
+  list.appendChild(manageProgram);
+}
+
+function updateHeaderMeta() {
+  const program = govFindProgram(currentProgramId);
+  document.getElementById('metaProgram').textContent = program.name;
+  document.getElementById('metaQuarter').textContent = program.quarter || '\u2014';
+  updateLastUpdated();
+}
+
+function updateLastUpdated() {
+  const program = govFindProgram(currentProgramId);
+  const dashboard = govFindDashboard(program, currentDashboardId);
+  const el = document.getElementById('lastUpdated');
+  if (!dashboard.apiUrl) { el.textContent = 'Last updated: \u2014'; return; }
+  try {
+    const raw = sessionStorage.getItem('gov_cache::' + dashboard.apiUrl);
+    if (raw) {
+      const entry = JSON.parse(raw);
+      el.textContent = 'Last updated: ' + new Date(entry.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return;
+    }
+  } catch (e) {}
+  el.textContent = 'Last updated: loading\u2026';
+}
+
+// Persistent iframe cache — each dashboard gets ONE iframe, created once
+// on first visit, then only ever shown/hidden after that. This is the
+// actual fix for "reloads every time I switch": the previous version
+// replaced content.innerHTML with a brand new iframe on every navigation,
+// which force-reloads the dashboard's entire JS execution context even
+// though the underlying Jira data fetch was already cached. Now the page
+// itself, not just the data, survives switching back and forth.
+const iframeCache = {};
+
+function getOrCreateIframe(program, dashboard) {
+  const key = `${program.id}:${dashboard.id}`;
+  if (iframeCache[key]) return iframeCache[key];
+  const iframe = document.createElement('iframe');
+  iframe.id = 'frame-' + key;
+  iframe.title = dashboard.name;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;display:none;position:absolute;inset:0;';
+  iframe.src = dashboard.path;
+  document.getElementById('content').appendChild(iframe);
+  iframeCache[key] = iframe;
+  return iframe;
+}
+
+function renderContent() {
+  const program = govFindProgram(currentProgramId);
+  const dashboard = govFindDashboard(program, currentDashboardId);
+  const content = document.getElementById('content');
+
+  // Hide every existing iframe and any not-connected placeholder — exactly
+  // one thing should be visible after this runs.
+  Object.values(iframeCache).forEach(f => { f.style.display = 'none'; });
+  const existingPlaceholder = document.getElementById('notConnectedPlaceholder');
+  if (existingPlaceholder) existingPlaceholder.remove();
+
+  if (!dashboard.path) {
+    const placeholder = document.createElement('div');
+    placeholder.id = 'notConnectedPlaceholder';
+    placeholder.style.cssText = 'position:absolute;inset:0;';
+    placeholder.innerHTML = `
+      <div class="not-connected">
+        <span class="badge">Not connected yet</span>
+        <h2>${program.name} \u2014 ${dashboard.name}</h2>
+        <p>This program isn\u2019t wired to a live Jira source yet. Adding it is a configuration change in <code>shell-config.js</code>, not a rebuild \u2014 once the Jira project/board/labels for ${program.name} are known, this view lights up the same way EON did.</p>
+      </div>`;
+    content.appendChild(placeholder);
+    return;
+  }
+
+  const iframe = getOrCreateIframe(program, dashboard);
+  iframe.style.display = 'block';
+  updateLastUpdated();
+}
+
+// Eagerly pre-load every connected dashboard for the CURRENT program right
+// after boot, so by the time the user starts clicking around, everything
+// is already warm — matches "load once at start" rather than lazily
+// loading on first click.
+function preloadCurrentProgram() {
+  const program = govFindProgram(currentProgramId);
+  program.dashboards.forEach(d => { if (d.path) getOrCreateIframe(program, d); });
+}
+function toggleDrawer() {
+  document.getElementById('drawer').classList.toggle('open');
+  document.getElementById('drawerOverlay').classList.toggle('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+document.getElementById('hamburgerBtn').addEventListener('click', toggleDrawer);
+document.getElementById('drawerOverlay').addEventListener('click', closeDrawer);
+
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Refreshing\u2026';
+  invalidateAllCache();
+
+  const frames = Object.values(iframeCache);
+  if (!frames.length) { btn.disabled = false; btn.innerHTML = '&#8635; Refresh'; return; }
+
+  let loaded = 0;
+  frames.forEach(iframe => {
+    iframe.addEventListener('load', function onLoad() {
+      iframe.removeEventListener('load', onLoad);
+      loaded++;
+      if (loaded === frames.length) {
+        setTimeout(() => { updateLastUpdated(); btn.disabled = false; btn.innerHTML = '&#8635; Refresh'; }, 500);
+      }
+    });
+    iframe.src = iframe.src; // forces just this iframe to reload and re-run its own boot()/fetch
+  });
+});
+
+window.addEventListener('popstate', (e) => {
+  const { programId, dashboardId } = e.state || parseRoute();
+  navigate(programId, dashboardId, { skipHistory: true });
+});
+
+// ---- Boot: gate on authentication FIRST, at the top level, before any
+// iframe loads. Login can never happen inside a frame (Atlassian blocks
+// it), so the shell must confirm the session exists before showing the
+// drawer or mounting any dashboard content.
+function showShellLoginGate() {
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e5e3ee;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#5b3fa0;font-weight:700;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#1c1a2e;">Sign in to continue</h1>
+        <p style="font-size:13px;color:#5c5875;line-height:1.5;margin:0 0 22px;">One login covers every dashboard and program in this shell.</p>
+        <button id="shellLoginBtn" style="width:100%;padding:11px;border-radius:24px;border:none;background:#b8790f;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+  document.getElementById('shellLoginBtn').addEventListener('click', () => {
+    const route = parseRoute();
+    const returnTo = `/governance/${route.programId}/${route.dashboardId}`;
+    window.location.href = '/api/auth/login?returnTo=' + encodeURIComponent(returnTo);
+  });
+}
+
+// Replaces the old static shell-config.js as the real source of truth.
+// Every program that exists in the registry — the EON built-in default, or
+// anything added through the Add Program form — automatically gets all four
+// dashboard templates. Nothing here is written per-program; the four
+// dashboard entries are generated from one shared template, parameterized
+// by ?program=<id>. This is what makes adding a program require zero new
+// code: the templates already exist, they just need to know which program
+// to fetch data for.
+function buildDashboardsFor(programId) {
+  return [
+    { id: 'executive', name: 'Executive Dashboard', path: `/executive.html?program=${programId}`, connected: true, apiUrl: null },
+    { id: 'sprint-health', name: 'Sprint Health', path: `/sprint-health.html?program=${programId}`, connected: true, apiUrl: `/api/sprint-health?program=${programId}` },
+    { id: 'engineering-delivery', name: 'Program Delivery Intelligence', path: `/engineering_delivery_dashboard.html?program=${programId}`, connected: true, apiUrl: `/api/delivery-intelligence?program=${programId}` },
+    { id: 'hygiene', name: 'Hygiene', path: `/hygiene.html?program=${programId}`, connected: true, apiUrl: `/api/hygiene?program=${programId}` },
+  ];
+}
+
+async function loadGovernanceConfig() {
+  try {
+    const res = await fetch('/api/programs', { credentials: 'include' });
+    const json = await res.json();
+    const programs = (json.programs || []).map(p => ({
+      id: p.id, name: p.name, quarter: p.quarter, dashboards: buildDashboardsFor(p.id),
+    }));
+    if (programs.length) GOVERNANCE_CONFIG.programs = programs;
+  } catch (e) {
+    // Registry unreachable — GOVERNANCE_CONFIG keeps whatever shell-config.js
+    // shipped with (the EON default), so the shell still boots into
+    // something usable rather than a blank page.
+  }
+}
+
+async function bootShell() {
+  // Use Case 1 fix: a genuine browser hard refresh must fetch fresh data,
+  // not reuse sessionStorage cache (sessionStorage deliberately survives
+  // reloads, which is exactly the problem here — we want it to survive
+  // normal in-app navigation, but not a reload).
+  try {
+    const navEntries = performance.getEntriesByType('navigation');
+    const isReload = navEntries.length && navEntries[0].type === 'reload';
+    if (isReload) invalidateAllCache();
+  } catch (e) { /* Navigation Timing API unavailable — safe to ignore */ }
+
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    if (!me.authenticated) { showShellLoginGate(); return; }
+  } catch (e) {
+    showShellLoginGate();
+    return;
+  }
+
+  // Load the real, current program list before deciding what to route to —
+  // this is what makes a program added five minutes ago show up now,
+  // without a redeploy.
+  await loadGovernanceConfig();
+  const initial = parseRoute();
+  navigate(initial.programId, initial.dashboardId, { skipHistory: true, replace: true });
+  window.history.replaceState({ programId: initial.programId, dashboardId: initial.dashboardId }, '', `/governance/${initial.programId}/${initial.dashboardId}`);
+  // Pre-load the rest of this program's dashboards now (the current one is
+  // already created by navigate() above) — so switching between them later
+  // never has to create or reload a frame, just show/hide what's already warm.
+  preloadCurrentProgram();
+  // Drawer starts open per spec. The overlay is ALWAYS active (click-catching)
+  // whenever the drawer is open — including this initial state — so
+  // click-outside-to-close works reliably every time, not just after
+  // re-opening via the hamburger. It's kept visually subtle (light tint,
+  // not a heavy dark scrim) so it doesn't feel intrusive at rest.
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+bootShell();
+</script>
+</body>
+</html>

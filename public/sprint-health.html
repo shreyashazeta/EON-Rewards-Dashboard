@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EON Sprint Health</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#f6f6fb; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --ink:#1c1a2e; --ink-2:#5c5875; --ink-3:#948fac;
+    --blue:#1a56a8; --blue-bg:#e9f1fb; --blue-bg-2:#dde9fa;
+    --red:#c0392b; --red-bg:#fceceb;
+    --amber:#b8790f; --amber-bg:#fbf1de;
+    --green:#1c7a4d; --green-bg:#e8f5ee;
+    --violet:#5b3fa0; --violet-bg:#f0ecfa;
+    --mono:'SF Mono','Consolas',monospace;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(20,21,28,0.04), 0 6px 18px -10px rgba(20,21,28,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:26px;}
+  .wrap{max-width:1240px;margin:0 auto;}
+
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin:0 0 5px;}
+  h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-0.015em;}
+  .stamp{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);text-align:right;}
+
+  .live-pill{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;letter-spacing:0.03em;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;text-transform:uppercase;}
+  .live-pill.live{background:var(--green-bg);color:var(--green);}
+  .live-pill.live::before{content:'●';font-size:8px;}
+  .live-pill.offline{background:var(--amber-bg);color:var(--amber);}
+
+  .banner{display:flex;align-items:flex-start;gap:10px;background:var(--amber-bg);border:1px solid #ecd9ac;border-radius:10px;padding:10px 15px;margin:0 0 8px;font-size:12.5px;color:#6b4a0d;line-height:1.5;}
+  .banner .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);margin-top:6px;flex-shrink:0;}
+  .banner.info{background:var(--blue-bg);border-color:#c9deff;color:#164a8f;}
+  .banner.info .dot{background:var(--blue);}
+
+  /* Hero */
+  .hero{background:var(--blue-bg);border:1px solid #d3e0f5;border-radius:var(--radius);padding:18px 22px;margin-bottom:12px;box-shadow:var(--shadow);}
+  .hero-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .hero-eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--blue);margin:0 0 3px;opacity:0.75;}
+  .hero-name{font-size:21px;font-weight:700;margin:0;color:var(--ink);}
+  .hero-state{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:0.03em;}
+  .hero-state.ok{background:var(--green-bg);color:var(--green);}
+  .hero-state.warn{background:var(--amber-bg);color:var(--amber);}
+  .hero-state.bad{background:var(--red-bg);color:var(--red);}
+  .hero-right{text-align:right;}
+  .hero-refresh{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--blue);background:#fff;border:1px solid var(--border-strong);border-radius:7px;padding:5px 10px;cursor:pointer;margin-bottom:4px;}
+  .hero-refresh:hover{background:var(--blue-bg-2);}
+  .hero-refresh:disabled{opacity:0.6;cursor:default;}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(26,86,168,0.25);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .hero-days{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+
+  .hero-bar-label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:5px;}
+  .hero-bar{display:flex;height:28px;border-radius:7px;overflow:visible;margin-bottom:14px;background:#e4e6ec;position:relative;}
+  .hero-bar-inner{display:flex;height:100%;width:100%;border-radius:7px;overflow:hidden;}
+  .hero-bar-seg{display:flex;align-items:center;justify-content:flex-start;padding:0 10px;font-weight:700;font-size:12px;cursor:pointer;}
+  .hero-bar-seg.todo{background:#c9cdd6;color:#3a3d45;}
+  .hero-bar-seg.inprogress{background:#e0c66b;color:#5c4b12;}
+  .hero-bar-seg.done{background:#33b47a;color:#083a24;}
+  #barPopover{display:none;position:absolute;top:calc(100% + 8px);background:#fff;border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:14px 16px;z-index:45;min-width:220px;}
+
+  .hero-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;}
+  .hstat{text-align:center;border-radius:9px;padding:7px 4px;background:rgba(255,255,255,0.55);border:1px solid rgba(255,255,255,0.6);cursor:pointer;position:relative;}
+  .hstat:hover{background:#fff;}
+  .hstat .num{font-family:var(--mono);font-size:21px;font-weight:700;margin:0;color:var(--ink);}
+  .hstat .num .pctsign{font-size:12px;font-weight:600;}
+  .hstat .lbl{font-size:10.5px;color:var(--ink-2);margin:2px 0 0;}
+  [data-tip]{position:relative;}
+  [data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#14151c;color:#fff;font-size:11px;font-weight:500;line-height:1.4;padding:7px 10px;border-radius:7px;white-space:normal;width:200px;text-align:left;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,0.25);}
+  [data-tip]::before{content:'';position:absolute;bottom:calc(100% + 3px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#14151c;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:40;}
+  [data-tip]:hover::after,[data-tip]:hover::before{opacity:1;}
+
+  .hero-bottom{border-top:1px solid rgba(255,255,255,0.7);padding-top:10px;}
+  .hero-bottom .lbl{font-size:11.5px;font-weight:700;margin:0 0 7px;color:var(--ink-2);}
+  .avatar-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .avatar{width:29px;height:29px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10.5px;font-weight:700;cursor:pointer;border:2px solid #fff;}
+
+  .controls-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .my-toggle{display:flex;align-items:center;gap:6px;}
+  .my-input{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;color:var(--ink);font-family:inherit;}
+  .my-toggle button{border:1px solid var(--border-strong);background:#fff;color:var(--ink-2);font-size:13px;font-weight:500;padding:7px 14px;border-radius:8px;cursor:pointer;}
+  .my-toggle button.active{background:var(--blue-bg);color:var(--blue);border-color:var(--blue);}
+
+  .section{margin-bottom:14px;}
+  .section-head{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding-left:2px;}
+  .section-head .bar{width:3px;height:16px;border-radius:2px;background:var(--blue);}
+  .section-head.risk .bar{background:var(--red);}
+  .section-head.pattern .bar{background:var(--violet);}
+  .section-head h2{font-size:14px;font-weight:700;margin:0;}
+  .section-desc{font-size:11.5px;color:var(--ink-2);margin:2px 0 12px 13px;}
+
+  .grid2{display:grid;grid-template-columns:1.1fr 0.9fr;gap:12px;}
+  @media(max-width:880px){.grid2{grid-template-columns:1fr;}}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:15px 17px;cursor:pointer;box-shadow:var(--shadow);transition:transform .08s;}
+  .card:hover{transform:translateY(-1px);}
+  .card .label{font-size:11px;color:var(--ink-2);margin:0 0 6px;font-weight:600;}
+  .card .value{font-family:var(--mono);font-size:23px;font-weight:700;margin:0;letter-spacing:-0.01em;}
+  .card .pct{font-size:12px;font-weight:600;margin-left:4px;}
+  .card .hint{font-size:10.5px;color:var(--ink-3);margin:5px 0 0;}
+  .card.warn .value,.card.warn .pct{color:var(--amber);}
+  .card.bad .value,.card.bad .pct{color:var(--red);}
+  .card.ok .value,.card.ok .pct{color:var(--green);}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);}
+  .panel .desc{font-size:11.5px;color:var(--ink-2);margin:0 0 14px;}
+  .chart-wrap{position:relative;height:210px;}
+
+  .stream-tile{border:1px solid var(--border);border-radius:10px;padding:13px 15px;cursor:pointer;background:#fafbfc;}
+  .stream-tile:hover{border-color:var(--border-strong);}
+  .stream-tile .sname{font-size:10.5px;color:var(--ink-2);margin:0 0 3px;font-weight:700;font-family:var(--mono);}
+  .stream-tile .scount{font-family:var(--mono);font-size:19px;font-weight:700;margin:0;}
+  .stream-tile .smeta{font-size:10.5px;color:var(--ink-2);margin:4px 0 0;}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-3);font-weight:700;padding:0 8px 7px;border-bottom:1px solid var(--border);}
+  th.num{text-align:right;}
+  td{padding:8px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td.num{text-align:right;font-family:var(--mono);}
+  tr.clickable{cursor:pointer;}
+  tr.clickable:hover{background:#fafbfc;}
+  .name-cell{font-weight:600;}
+  .bar-cell{display:flex;align-items:center;gap:8px;}
+  .bar-track{flex:1;height:6px;background:#eef0f3;border-radius:3px;overflow:hidden;min-width:60px;}
+  .bar-fill{height:100%;border-radius:3px;}
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .pill.bad{background:var(--red-bg);color:var(--red);}
+  .pill.warn{background:var(--amber-bg);color:var(--amber);}
+  .pill.ok{background:var(--green-bg);color:var(--green);}
+  .pill.muted{background:var(--bg);color:var(--ink-3);border:1px solid var(--border);}
+
+  .epic-tag{display:inline-block;font-size:10.5px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:2px 8px;border-radius:6px;text-decoration:none;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
+  .epic-tag.none{color:var(--ink-3);background:var(--bg);border:1px solid var(--border);}
+
+  .ticket-list{display:flex;flex-direction:column;gap:0;max-height:280px;overflow-y:auto;}
+  .ticket-row{display:flex;flex-direction:column;gap:4px;padding:9px 5px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:7px;}
+  .ticket-row:last-child{border-bottom:none;}
+  .ticket-row:hover{background:#fafbfc;}
+  .ticket-row-top{display:flex;align-items:baseline;gap:8px;}
+  .ticket-key{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--blue);flex-shrink:0;width:58px;}
+  .type-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;flex-shrink:0;vertical-align:middle;margin-right:4px;}
+  .ticket-title{font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .ticket-row-bottom{display:flex;align-items:center;gap:7px;padding-left:66px;flex-wrap:wrap;}
+  .ticket-meta{font-size:10.5px;color:var(--ink-3);flex-shrink:0;white-space:nowrap;}
+  .ticket-tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:10px;flex-shrink:0;}
+  .ticket-arrow{font-size:11px;color:var(--ink-3);flex-shrink:0;margin-left:auto;}
+  .aging-tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--red-bg);color:var(--red);flex-shrink:0;}
+  .list-head{display:flex;gap:8px;padding:0 5px 6px;font-size:9.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-3);font-weight:700;border-bottom:1px solid var(--border);margin-bottom:2px;}
+
+  .my-panel{background:linear-gradient(155deg,#eef1fb,#e9f1fb);border:1px solid #d3e0f5;border-radius:var(--radius);padding:16px 20px;margin-bottom:14px;display:none;}
+  .my-panel.show{display:block;}
+  .my-panel h2{font-size:13px;font-weight:700;margin:0 0 10px;color:var(--ink);}
+  .my-stats{display:flex;gap:22px;flex-wrap:wrap;}
+  .my-stat .n{font-family:var(--mono);font-size:20px;font-weight:700;}
+  .my-stat .l{font-size:10.5px;color:var(--ink-2);}
+
+  .dtable{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .dtable th{position:sticky;top:0;background:var(--card);text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-3);font-weight:700;padding:7px 7px;border-bottom:1px solid var(--border);}
+  .dtable td{padding:8px 7px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .dtable tr:last-child td{border-bottom:none;}
+  .dtable a.tkey{font-family:var(--mono);color:var(--blue);text-decoration:none;font-weight:700;}
+  .dtable a.tkey:hover{text-decoration:underline;}
+
+  .note{font-size:11px;color:var(--ink-2);line-height:1.6;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);margin-top:4px;}
+  .note strong{color:var(--ink);}
+  .note code{font-family:var(--mono);background:#eef0f3;padding:1px 5px;border-radius:4px;font-size:10.5px;}
+
+  .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(20,21,28,0.45);z-index:50;align-items:flex-start;justify-content:center;padding:60px 20px;}
+  .loading-overlay{display:none;position:fixed;inset:0;background:rgba(244,245,248,0.85);z-index:60;align-items:center;justify-content:center;flex-direction:column;}
+  .loading-overlay.show{display:flex;}
+  .loading-spin{width:34px;height:34px;border:3px solid var(--border-strong);border-top-color:var(--blue);border-radius:50%;animation:loadspin .8s linear infinite;margin-bottom:14px;}
+  @keyframes loadspin{to{transform:rotate(360deg);}}
+  .loading-text{font-size:13px;color:var(--ink-2);font-weight:500;}
+  .drawer-overlay.open{display:flex;}
+  .drawer{background:var(--card);border-radius:14px;max-width:640px;width:100%;max-height:74vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+  .drawer-head h3{font-size:13px;font-weight:700;margin:0;}
+  .drawer-head button{border:none;background:none;font-size:19px;color:var(--ink-3);cursor:pointer;line-height:1;padding:4px;}
+  .drawer-body{overflow-y:auto;padding:6px 10px 10px;}
+  .drawer-empty{padding:22px;text-align:center;font-size:12px;color:var(--ink-3);}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spin"></div>
+  <div class="loading-text" id="loadingText">Loading sprint data from Jira…</div>
+</div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">EON Scrum Board · Sprint Health <span id="liveStatus" class="live-pill offline">Checking...</span></p>
+      <h1 id="pageTitle">Sprint Health</h1>
+    </div>
+    <p class="stamp" id="dataStamp"></p>
+  </div>
+
+  <div class="banner" id="staleBlockedBanner" style="display:none;"></div>
+  <div class="banner info" id="carryBanner" style="display:none;"></div>
+
+  <div class="hero" id="heroGadget"></div>
+
+  <div class="panel" id="aiPanel" style="margin-bottom:14px;display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div class="section-head" style="margin:0;"><div class="bar" style="background:var(--violet);"></div><h2>Executive summary</h2></div>
+      <button id="aiGenerateBtn" class="hero-refresh" style="background:var(--violet-bg);border-color:#ddc3f0;color:var(--violet);">✨ Generate with Claude</button>
+    </div>
+    <p class="desc" style="margin:6px 0 0 13px;">AI-generated readout of the current sprint data — summary, risks, and recommended actions. Not automatic; click to generate (uses your team's Claude API usage).</p>
+    <div id="aiResult" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="my-panel" id="myPanel"></div>
+
+  <div class="controls-row">
+    <div class="my-toggle">
+      <select id="myNameSelect" style="min-width:200px;"><option value="">Everyone</option></select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="cards" id="cards"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><div class="bar"></div><h2>Stream breakdown</h2></div>
+    <p class="section-desc">What each tracked stream contributed to this sprint — click for assignee, status, Dev ETA &amp; QA ETA per ticket</p>
+    <div class="cards" id="streamTiles"></div>
+  </div>
+
+  <div class="section risk">
+    <div class="section-head risk"><div class="bar"></div><h2>What's actually blocked</h2></div>
+    <p class="section-desc" id="blockedDesc"></p>
+    <div class="panel"><div class="ticket-list" id="blockedList"></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><div class="bar"></div><h2>Progress by epic</h2></div>
+    <p class="section-desc">What's actually shipping this sprint, rolled up to feature level — click a row for its tickets</p>
+    <div class="panel">
+      <table><thead><tr><th>Epic</th><th class="num">Tickets</th><th class="num">SP</th><th>Progress</th></tr></thead><tbody id="epicRows"></tbody></table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="grid2">
+      <div class="panel">
+        <div class="section-head" style="margin-bottom:2px;"><div class="bar"></div><h2>Sprint outcome by status</h2></div>
+        <p class="desc" style="margin-left:13px;">Click a slice to see those tickets</p>
+        <div class="chart-wrap"><canvas id="statusChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="section-head" style="margin-bottom:2px;"><div class="bar"></div><h2>Workload &amp; WIP by person</h2></div>
+        <p class="desc" style="margin-left:13px;">Open tickets in flight right now</p>
+        <table><thead><tr><th>Owner</th><th class="num">Open</th><th class="num">Done</th><th>Load</th></tr></thead><tbody id="workloadRows"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><div class="bar"></div><h2>QA readiness</h2></div>
+    <p class="section-desc">Dev-side progress doesn't mean QA-ready — this tracks whether a QA target date is actually set</p>
+    <div class="cards" id="qaCards"></div>
+  </div>
+
+  <div class="section pattern">
+    <div class="section-head pattern"><div class="bar"></div><h2 id="carryTitle">Carried in from previous sprint</h2></div>
+    <p class="section-desc" id="carryDesc"></p>
+    <div class="panel"><div class="ticket-list" id="carryList"></div></div>
+  </div>
+
+  <div class="section pattern">
+    <div class="section-head pattern"><div class="bar"></div><h2>Repeat carryover</h2></div>
+    <p class="section-desc">In sprint scope 3+ times without closing — a pattern, not a one-off</p>
+    <div class="panel"><div class="ticket-list" id="repeatList"></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><div class="bar"></div><h2>Completion by owner</h2></div>
+    <p class="section-desc">Click a row to see that person's tickets</p>
+    <div class="panel">
+      <table><thead><tr><th>Owner</th><th class="num">Committed</th><th class="num">Done</th><th>Rate</th></tr></thead><tbody id="ownerRows"></tbody></table>
+    </div>
+  </div>
+
+  <div class="banner info" id="quarterlyBanner"></div>
+
+  <div id="epicDeliverySections"></div>
+
+  <div class="note">
+    <strong>Methodology notes</strong> — <strong>Scope change</strong> compares story points on tickets created after the sprint's start date against the original commitment (an approximation). <strong>Predictability score</strong> needs 2+ closed sprints; one data point so far. <strong>Blocker aging</strong> is pulled from each ticket's real changelog.
+  </div>
+
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="if(event.target===this) closeDrawer()">
+  <div class="drawer">
+    <div class="drawer-head"><h3 id="drawerTitle">Tickets</h3><button onclick="closeDrawer()" aria-label="Close">&times;</button></div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+</div>
+
+<script src="/js/cache-client.js"></script>
+<script>
+const JIRA_BASE = "https://zeta-tm.atlassian.net/browse/";
+const PROXY_BASE = "";
+const PROGRAM_ID = new URLSearchParams(window.location.search).get('program') || 'eon';
+const EMBEDDED_TICKETS = [];
+let EPIC_DELIVERY = {};
+let EPIC_DELIVERY_LABEL_FILTER = {}; // stream label -> selected sub-label ('' = all epics in the stream)
+let EPIC_DELIVERY_ADHOC = {};        // sub-label -> epics fetched on demand from /api/epic-delivery?label=
+let PROGRAM_STREAMS = [];
+let EPIC_DELIVERY_PULLED_AT = "2026-08-05T21:00:00+05:30";
+
+const EMBEDDED_META = {
+  currentSprintName: "EON JAS Sprint 4",
+  currentSprintState: "active",
+  currentSprintRange: "Aug 4 \u2013 Aug 17, 2026",
+  closedToday: false,
+  prevSprintName: "EON JAS Sprint 3",
+  daysLeft: 12,
+  dataPulledAt: "2026-08-05T15:00:00+05:30",
+  currentSprintStart: "2026-08-04T17:12:24+05:30"
+};
+
+let liveMode = false;
+let myTicketsOnly = false;
+let myName = '';
+let ALL_TICKETS = EMBEDDED_TICKETS;
+let META = EMBEDDED_META;
+
+function pct(n,d){ return d? Math.round(n/d*100) : 0; }
+
+// "Velocity"/"done" credit should exclude tickets that were closed WITHOUT
+// real delivery (rejected, duplicate, won't-fix, etc) but must not depend on
+// every Jira project using the exact resolution name "Resolved" — different
+// projects/boards can have differently-worded resolution schemes, and a
+// literal string match against "Resolved" silently zeroes out completion
+// stats on any project that doesn't use that exact word (this is what was
+// happening on Rewards PLE). Instead, credit anything in the Done status
+// category UNLESS its resolution is explicitly one of the known
+// not-really-delivered values.
+const NON_DELIVERED_RESOLUTIONS = new Set(['Rejected',"Won't Fix","Won't Do",'Duplicate','Cannot Reproduce','Invalid','Declined','Abandoned']);
+function isDelivered(d){ return d.cat === 'Done' && !(d.res && NON_DELIVERED_RESOLUTIONS.has(d.res)); }
+
+function typeIcon(type){
+  const T = {
+    'Story':      { bg:'#65ba43', path:'M4 2.5h6a1 1 0 011 1v8.2l-4-2.3-4 2.3V3.5a1 1 0 011-1z' },
+    'Bug':        { bg:'#e2483d', path:'M7 4.2a2.6 2.6 0 012.6 2.6v1.4A2.6 2.6 0 017 10.8 2.6 2.6 0 014.4 8.2V6.8A2.6 2.6 0 017 4.2z', extra:'<path d="M3 6.5l1.6 1M11 6.5l-1.6 1M3 10l1.8-.9M11 10l-1.8-.9M7 3.5V2M5.5 3l-.8-1M8.5 3l.8-1" stroke="#fff" stroke-width="0.8" fill="none" stroke-linecap="round"/>' },
+    'Task':       { bg:'#4bade8', path:'M3.5 3.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z', extra:'<path d="M5 7l1.4 1.4L9.3 5.5" stroke="#fff" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+    'Tech Story': { bg:'#6554c0', path:'', extra:'<path d="M4.8 4.2L2.5 7l2.3 2.8M9.2 4.2L11.5 7l-2.3 2.8M7.6 3l-1.2 8" stroke="#fff" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+    'Epic':       { bg:'#8b3ee8', path:'M8.3 1.5L3.2 8h2.9l-1 4.5L10 6H7.1z' },
+    'Sub-task':   { bg:'#4bade8', path:'M4 4h6a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z', extra:'<path d="M5.3 7l1 1 1.6-1.8" stroke="#fff" stroke-width="0.9" fill="none" stroke-linecap="round"/>' },
+  };
+  const conf = T[type];
+  const bg = conf ? conf.bg : '#8993a4';
+  const inner = conf ? `<path d="${conf.path}" fill="#fff"/>${conf.extra||''}` : `<text x="7" y="10" font-size="8" fill="#fff" text-anchor="middle" font-family="sans-serif">${(type||'?').charAt(0)}</text>`;
+  return `<span class="type-icon" title="${type||'Unknown type'}" style="background:${bg};"><svg viewBox="0 0 14 14" width="13" height="13" style="display:block;">${inner}</svg></span>`;
+}
+function fmtDate(iso){ if(!iso) return null; const d = new Date(iso); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function fmtAge(iso, now){
+  if(!iso) return null;
+  const ms = now - new Date(iso);
+  const hrs = Math.floor(ms/3600000);
+  if(hrs < 1) return 'just now';
+  if(hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs/24)}d ${hrs%24}h`;
+}
+function epicTag(item){
+  if(!item.parent_key) return `<span class="epic-tag none">No epic</span>`;
+  const label = item.parent_sum ? `${item.parent_key} · ${item.parent_sum}` : item.parent_key;
+  return `<a class="epic-tag" href="${JIRA_BASE}${item.parent_key}" target="_blank" rel="noopener" title="${label}" onclick="event.stopPropagation()">${label}</a>`;
+}
+function ticketListHead(){
+  return `<div class="list-head"><span style="width:58px;flex-shrink:0;">Ticket</span><span style="flex:1;">Summary · Epic</span><span>Assignee / status</span></div>`;
+}
+function ticketRow(i, tagText, tagColor){
+  return `
+    <div class="ticket-row" onclick="window.open('${JIRA_BASE}${i.k}','_blank')">
+      <span class="ticket-row-top">${typeIcon(i.t)}<span class="ticket-key">${i.k}</span><span class="ticket-title" title="${i.sum}">${i.sum}</span></span>
+      <span class="ticket-row-bottom">
+        ${epicTag(i)}
+        <span class="ticket-meta">${i.a}</span>
+        ${tagText?`<span class="ticket-tag" style="background:${tagColor}22;color:${tagColor};">${tagText}</span>`:''}
+        <span class="ticket-arrow">&rarr;</span>
+      </span>
+    </div>`;
+}
+function openDrawer(title, issues){
+  document.getElementById('drawerTitle').textContent = `${title} (${issues.length})`;
+  const body = document.getElementById('drawerBody');
+  body.innerHTML = issues.length ? `${ticketListHead()}<div class="ticket-list" style="max-height:54vh;">${issues.map(i=>ticketRow(i)).join('')}</div>` : '<div class="drawer-empty">No tickets in this set.</div>';
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer(){ document.getElementById('drawerOverlay').classList.remove('open'); }
+
+function openStreamDrawer(title, issues){
+  document.getElementById('drawerTitle').textContent = `${title} (${issues.length})`;
+  const body = document.getElementById('drawerBody');
+  if(!issues.length){ body.innerHTML = '<div class="drawer-empty">No tickets in this stream.</div>'; document.getElementById('drawerOverlay').classList.add('open'); return; }
+  const rows = issues.map(i=>{
+    const statusCls = i.cat==='Done'?'ok':i.status==='Blocked'?'bad':'warn';
+    return `<tr>
+      <td>${typeIcon(i.t)}<a class="tkey" href="${JIRA_BASE}${i.k}" target="_blank" rel="noopener">${i.k}</a><div style="font-size:11px;color:var(--ink-2);margin-top:2px;max-width:210px;">${i.sum}</div></td>
+      <td>${i.parent_key ? epicTag(i) : '<span class="pill muted">No epic</span>'}</td>
+      <td>${i.a}</td>
+      <td><span class="pill ${statusCls}">${i.status}</span></td>
+      <td>${i.dev_eta ? fmtDate(i.dev_eta) : '<span class="pill muted">Not set</span>'}</td>
+      <td>${i.qa_eta ? fmtDate(i.qa_eta) : '<span class="pill muted">Not set</span>'}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = `<table class="dtable"><thead><tr><th>Ticket</th><th>Epic</th><th>Assignee</th><th>Status</th><th>Dev ETA</th><th>QA ETA</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e4e6ec;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#948fac;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#14151c;">Sign in to view Sprint Health</h1>
+        <p style="font-size:13px;color:#5c6070;line-height:1.5;margin:0 0 22px;">This dashboard shows live sprint data and requires your Atlassian account.</p>
+        <button onclick="window.location.href='/api/auth/login?returnTo=/sprint-health.html'" style="width:100%;padding:11px;border-radius:8px;border:none;background:#1a56a8;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+function currentSet(){
+  let list = ALL_TICKETS;
+  if(myTicketsOnly && myName.trim()) list = list.filter(i => i.a === myName.trim());
+  return list;
+}
+function populateMyNameSelect(){
+  const sel = document.getElementById('myNameSelect');
+  if(!sel) return;
+  const names = [...new Set(ALL_TICKETS.map(i => i.a).filter(n => n && n !== 'Unassigned'))].sort();
+  const prevValue = sel.value || myName;
+  sel.innerHTML = '<option value="">Everyone</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+  if(names.includes(prevValue)) sel.value = prevValue;
+}
+
+let statusChartInstance = null;
+
+function render(){
+  populateMyNameSelect();
+  const T = currentSet();
+  const now = new Date(META.dataPulledAt);
+  document.getElementById('pageTitle').textContent = META.currentSprintName + ' Health';
+  if(META.programName){
+    document.title = META.programName + ' Sprint Health';
+    const eyebrow = document.querySelector('.eyebrow');
+    if(eyebrow) eyebrow.firstChild.textContent = META.programName + ' Scrum Board \u00b7 Sprint Health ';
+  }
+  document.getElementById('dataStamp').innerHTML = `Data as of ${now.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}<br>${liveMode?'live from Jira':'last known snapshot'}`;
+
+  const total = T.length;
+  const spTotal = T.reduce((s,d)=>s+d.sp,0);
+  const doneCategory = T.filter(d=>d.cat==='Done');
+  const doneResolved = T.filter(isDelivered);
+  const todo = T.filter(d=>d.cat==='To Do');
+  const inProgress = T.filter(d=>d.cat==='In Progress');
+  const blocked = T.filter(d=>d.status==='Blocked');
+  const repeatCarry = T.filter(d=>d.sprints.length>=3);
+  const carried = T.filter(d=>d.sprints.includes(META.prevSprintName));
+  const freshToSprint = T.filter(d=>!d.sprints.includes(META.prevSprintName));
+  const spDone = doneResolved.reduce((s,d)=>s+d.sp,0);
+  const spTodo = todo.reduce((s,d)=>s+d.sp,0);
+  const spInProgress = inProgress.reduce((s,d)=>s+d.sp,0);
+  const spDoneCategory = doneCategory.reduce((s,d)=>s+d.sp,0);
+  const p1Items = T.filter(d=>d.priority==='P1');
+  const addedMidSprint = T.filter(d=>d.created && META.currentSprintStart && d.created.slice(0,10) > META.currentSprintStart.slice(0,10));
+  const spAdded = addedMidSprint.reduce((s,d)=>s+d.sp,0);
+  const spOriginal = spTotal - spAdded;
+  const scopeChangePct = pct(spAdded, spOriginal);
+  const staleBlocked = blocked.filter(b => b.blocked_since && (now - new Date(b.blocked_since)) > 3*24*3600000);
+
+  let hCls='ok', hLabel='On track';
+  if(staleBlocked.length>0){ hCls='bad'; hLabel='At risk'; }
+  else if(blocked.length>0 || repeatCarry.length>0){ hCls='warn'; hLabel='Watch closely'; }
+
+  // ---- Hero ----
+  const initials = {};
+  const avatarColors = ['#33b47a','#5c6fe0','#d9ac3f','#8b7ce8','#e0715c','#4fb0c9'];
+  let ci=0;
+  T.forEach(d=>{ if(!initials[d.a]){ initials[d.a] = { text: d.a.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(), color: avatarColors[ci%avatarColors.length] }; ci++; } });
+  const pTodo = pct(spTodo, spTotal), pInProg = pct(spInProgress, spTotal), pDoneCat = pct(spDoneCategory, spTotal);
+  document.getElementById('heroGadget').innerHTML = `
+    <div class="hero-top">
+      <div>
+        <p class="hero-eyebrow">Current sprint</p>
+        <div style="display:flex;align-items:center;gap:10px;"><p class="hero-name">${META.currentSprintName}</p><span class="hero-state ${hCls}">${hLabel}</span></div>
+      </div>
+      <div class="hero-right">
+        <div class="hero-days">${META.daysLeft} day${META.daysLeft===1?'':'s'} left</div>
+        <button class="hero-refresh" id="refreshBtn" onclick="boot()">↻ Refresh</button>
+      </div>
+    </div>
+    <p class="hero-bar-label"><span>Overall sprint progress (Story Points)</span><span>${spDoneCategory} / ${spTotal}</span></p>
+    <div class="hero-bar" id="heroBarTrack">
+      <div class="hero-bar-inner">
+        ${spTodo>0?`<div class="hero-bar-seg todo" style="width:${pTodo}%;" data-cat="todo" data-count="${todo.length}" data-sp="${spTodo}" data-pct="${pTodo}">${pTodo>=7?spTodo:''}</div>`:''}
+        ${spInProgress>0?`<div class="hero-bar-seg inprogress" style="width:${pInProg}%;" data-cat="inprogress" data-count="${inProgress.length}" data-sp="${spInProgress}" data-pct="${pInProg}">${pInProg>=7?spInProgress:''}</div>`:''}
+        ${spDoneCategory>0?`<div class="hero-bar-seg done" style="width:${pDoneCat}%;" data-cat="done" data-count="${doneCategory.length}" data-sp="${spDoneCategory}" data-pct="${pDoneCat}">${pDoneCat>=7?spDoneCategory:''}</div>`:''}
+      </div>
+      <div id="barPopover"><p id="popTitle" style="font-size:14px;font-weight:700;margin:0 0 8px;color:var(--ink);"></p><span id="popLink" style="font-size:12.5px;color:var(--blue);font-weight:600;">Click to view →</span></div>
+    </div>
+    <div class="hero-stats">
+      <div class="hstat" id="heroTime" data-tip="Percentage of the sprint's calendar duration that has elapsed"><p class="num">${META.pctElapsed!=null?META.pctElapsed:100}<span class="pctsign">%</span></p><p class="lbl">Time elapsed</p></div>
+      <div class="hstat" id="heroWork" data-tip="Share of committed story points on Done-category tickets"><p class="num">${pDoneCat}<span class="pctsign">%</span></p><p class="lbl">Work complete</p></div>
+      <div class="hstat" id="heroScope" data-tip="Story points on tickets created after the sprint started (${spAdded} SP) vs original ${spOriginal} SP commitment"><p class="num">${scopeChangePct}<span class="pctsign">%</span></p><p class="lbl">Scope change</p></div>
+      <div class="hstat" id="heroP1" data-tip="Tickets marked Highest priority (P1)"><p class="num">${p1Items.length}</p><p class="lbl">P1</p></div>
+      <div class="hstat" id="heroFlagged" data-tip="Tickets currently Blocked"><p class="num">${blocked.length}</p><p class="lbl">Flagged</p></div>
+    </div>
+    <div class="hero-bottom">
+      <p class="lbl">Assignees in sprint</p>
+      <div class="avatar-row" id="heroAvatars"></div>
+    </div>`;
+  document.getElementById('heroTime').addEventListener('click', ()=>openDrawer('All sprint tickets', T));
+  document.getElementById('heroWork').addEventListener('click', ()=>openDrawer('Done-category tickets', doneCategory));
+  document.getElementById('heroScope').addEventListener('click', ()=>openDrawer('Added mid-sprint', addedMidSprint));
+  document.getElementById('heroP1').addEventListener('click', ()=>openDrawer('P1 tickets', p1Items));
+  document.getElementById('heroFlagged').addEventListener('click', ()=>openDrawer('Blocked tickets', blocked));
+  document.getElementById('heroAvatars').innerHTML = Object.entries(initials).map(([name,v])=>`<div class="avatar" style="background:${v.color};" data-tip="${name}" data-name="${name}">${v.text}</div>`).join('');
+  document.querySelectorAll('#heroAvatars .avatar').forEach(el=>el.addEventListener('click', ()=>openDrawer(el.dataset.name, T.filter(d=>d.a===el.dataset.name))));
+
+  const catIssueMap = { todo, inprogress: inProgress, done: doneCategory };
+  const catLabelMap = { todo:'Issues To Do', inprogress:'Issues In Progress', done:'Issues Done' };
+  const popover = document.getElementById('barPopover');
+  document.querySelectorAll('.hero-bar-seg').forEach(seg=>{
+    seg.addEventListener('mouseenter', ()=>{
+      document.getElementById('popTitle').textContent = `${catLabelMap[seg.dataset.cat]} (${seg.dataset.pct}%)`;
+      document.getElementById('popLink').textContent = `${seg.dataset.count} tickets · ${seg.dataset.sp} SP — view →`;
+      popover.style.left = seg.offsetLeft + 'px';
+      popover.style.display = 'block';
+    });
+    seg.addEventListener('mouseleave', ()=>{ popover.style.display='none'; });
+    seg.addEventListener('click', ()=>openDrawer(catLabelMap[seg.dataset.cat], catIssueMap[seg.dataset.cat]));
+  });
+
+  // ---- Banners ----
+  const staleBannerEl = document.getElementById('staleBlockedBanner');
+  if(staleBlocked.length>0){ staleBannerEl.style.display='flex'; staleBannerEl.innerHTML = `<span class="dot"></span><span><strong>Long-blocked:</strong> ${staleBlocked.map(b=>`${b.k} blocked ${fmtAge(b.blocked_since,now)}`).join('; ')}.</span>`; }
+  else staleBannerEl.style.display='none';
+  const carryBannerEl = document.getElementById('carryBanner');
+  carryBannerEl.style.display='flex';
+  carryBannerEl.innerHTML = `<span class="dot"></span><span><strong>${META.currentSprintName} is live</strong> — ${carried.length} of ${total} tickets carried in from ${META.prevSprintName}, ${freshToSprint.length} freshly planned.</span>`;
+
+  // ---- My work panel ----
+  const myPanel = document.getElementById('myPanel');
+  if(myTicketsOnly && myName.trim()){
+    const myOpen = T.filter(d=>d.cat!=='Done');
+    const myBlocked = T.filter(d=>d.status==='Blocked');
+    const mySpDone = T.filter(isDelivered).reduce((s,d)=>s+d.sp,0);
+    const mySpTotal = T.reduce((s,d)=>s+d.sp,0);
+    myPanel.classList.add('show');
+    myPanel.innerHTML = `<h2>My sprint — ${myName}</h2><div class="my-stats">
+      <div class="my-stat"><span class="n">${T.length}</span><br><span class="l">Total tickets</span></div>
+      <div class="my-stat"><span class="n">${myOpen.length}</span><br><span class="l">Still open</span></div>
+      <div class="my-stat" style="${myBlocked.length?'color:var(--red);':''}"><span class="n">${myBlocked.length}</span><br><span class="l">Blocked</span></div>
+      <div class="my-stat"><span class="n">${mySpDone}<span style="font-size:13px;color:var(--ink-3);">/${mySpTotal}</span></span><br><span class="l">SP done</span></div>
+    </div>`;
+  } else { myPanel.classList.remove('show'); myPanel.innerHTML=''; }
+
+  // ---- KPI cards (all clickable) ----
+  document.getElementById('cards').innerHTML = `
+    <div class="card ok" id="kVelocity"><p class="label">Velocity</p><p class="value">${spDone}</p><p class="hint">of ${spTotal} SP committed</p></div>
+    <div class="card ${pDoneCat>=50?'ok':pDoneCat>=25?'warn':'bad'}" id="kWork"><p class="label">Work complete</p><p class="value">${pDoneCat}<span class="pct">%</span></p><p class="hint">${doneCategory.length} of ${total} tickets</p></div>
+    <div class="card ${carried.length>10?'warn':'ok'}" id="kCarry"><p class="label">Carried in</p><p class="value">${carried.length}</p><p class="hint">${freshToSprint.length} freshly planned</p></div>
+    <div class="card ${repeatCarry.length>0?'bad':'ok'}" id="kRepeat"><p class="label">Repeat carryover</p><p class="value">${repeatCarry.length}</p><p class="hint">3+ sprints without closing</p></div>
+    <div class="card ${blocked.length>0?'bad':'ok'}" id="kBlocked"><p class="label">Blocked</p><p class="value">${blocked.length}</p><p class="hint">${blocked.length?blocked.map(b=>b.k).join(', '):'none'}</p></div>
+  `;
+  document.getElementById('kVelocity').addEventListener('click', ()=>openDrawer('Completed tickets (velocity)', doneResolved));
+  document.getElementById('kWork').addEventListener('click', ()=>openDrawer('Done-category tickets', doneCategory));
+  document.getElementById('kCarry').addEventListener('click', ()=>openDrawer('Carried in from previous sprint', carried));
+  document.getElementById('kRepeat').addEventListener('click', ()=>openDrawer('Repeat carryover', repeatCarry));
+  document.getElementById('kBlocked').addEventListener('click', ()=>openDrawer('Blocked tickets', blocked));
+
+  // ---- Streams ----
+  const streams = PROGRAM_STREAMS.length ? PROGRAM_STREAMS : [];
+  document.getElementById('streamTiles').innerHTML = streams.map(s=>{
+    const items = T.filter(d=>d.labels.includes(s.label));
+    const itemsDone = items.filter(d=>d.cat==='Done');
+    const sp = items.reduce((sum,d)=>sum+d.sp,0);
+    return `<div class="card stream-tile" data-key="${s.label}"><p class="sname">${s.name}</p><p class="scount">${items.length} <span style="font-size:11px;font-weight:500;color:var(--ink-3);">picked</span></p><p class="smeta">${itemsDone.length}/${items.length} done · ${sp} SP</p></div>`;
+  }).join('');
+  document.querySelectorAll('.stream-tile').forEach(el=>{
+    el.addEventListener('click', ()=>openStreamDrawer(el.dataset.key, T.filter(d=>d.labels.includes(el.dataset.key))));
+  });
+
+  // ---- Blocked ----
+  document.getElementById('blockedDesc').textContent = `The specific ticket carrying risk in ${META.currentSprintName}`;
+  document.getElementById('blockedList').innerHTML = blocked.length ? ticketListHead() + blocked.map(b=>{
+    const age = fmtAge(b.blocked_since, now);
+    return `<div class="ticket-row" onclick="window.open('${JIRA_BASE}${b.k}','_blank')">
+      <span class="ticket-row-top">${typeIcon(b.t)}<span class="ticket-key">${b.k}</span><span class="ticket-title" title="${b.sum}">${b.sum}</span></span>
+      <span class="ticket-row-bottom">${epicTag(b)}<span class="ticket-meta">${b.a}</span>${age?`<span class="aging-tag">Blocked ${age}</span>`:'<span class="pill muted">Aging n/a</span>'}<span class="ticket-arrow">&rarr;</span></span>
+    </div>`;
+  }).join('') : '<div class="drawer-empty">No blocked tickets right now.</div>';
+
+  // ---- Epics ----
+  const epicMap = {};
+  T.forEach(t=>{ const key=t.parent_key||'__none__'; epicMap[key]=epicMap[key]||{key:t.parent_key,sum:t.parent_sum,tickets:[],sp:0,spDone:0}; epicMap[key].tickets.push(t); epicMap[key].sp+=t.sp; if(t.cat==='Done') epicMap[key].spDone+=t.sp; });
+  const epics = Object.values(epicMap).sort((a,b)=>b.tickets.length-a.tickets.length);
+  document.getElementById('epicRows').innerHTML = epics.map(e=>{
+    const p = pct(e.spDone, e.sp);
+    const label = e.key ? `${typeIcon('Epic')}<a class="epic-tag" href="${JIRA_BASE}${e.key}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${e.key}</a> ${e.sum||''}` : '<span class="epic-tag none">No epic</span>';
+    return `<tr class="clickable" data-epic="${e.key||''}"><td>${label}</td><td class="num">${e.tickets.length}</td><td class="num">${e.sp}</td><td><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${p>=70?'#1c7a4d':p>=30?'#b8790f':'#c0392b'};"></div></div><span style="font-size:11px;color:var(--ink-2);width:32px;">${p}%</span></div></td></tr>`;
+  }).join('');
+  document.querySelectorAll('#epicRows tr').forEach(tr=>{
+    tr.addEventListener('click', ()=>{ const key=tr.dataset.epic; const e=epics.find(x=>(x.key||'')===key); openDrawer(e.key?`${e.key} · ${e.sum||''}`:'No epic', e.tickets); });
+  });
+
+  // ---- Status chart ----
+  // Preferred order/colors for the EON workflow's known status names — used
+  // when they're present, but NOT relied on exclusively: a different program
+  // (like Rewards PLE) can run a completely different Jira workflow with
+  // different status names, and a hardcoded EON-only list would silently
+  // render an empty chart for any status it doesn't recognize (this was the
+  // actual bug — Rewards' real statuses just weren't in this list). Any
+  // status not in the known map still renders, just with a generated color
+  // and status-category-based fallback.
+  const knownStatusOrder = ['Done/Closed','Done','Closed','Rejected','In Peer Review','Dev In Progress','Blocked','In Progress','To Do'];
+  const knownStatusColor = {'Done/Closed':'#1c7a4d','Done':'#1c7a4d','Closed':'#1c7a4d','Rejected':'#948fac','In Peer Review':'#b8790f','Dev In Progress':'#d97a2b','Blocked':'#c0392b','In Progress':'#b8790f','To Do':'#c9cdd6'};
+  const catFallbackColor = { 'Done':'#1c7a4d', 'In Progress':'#b8790f', 'To Do':'#c9cdd6' };
+  const fallbackPalette = ['#4bade8','#8b3ee8','#6554c0','#33b47a','#d9ac3f','#e0715c'];
+  const counts = {}; const catByStatus = {};
+  T.forEach(d=>{ counts[d.status]=(counts[d.status]||0)+1; catByStatus[d.status]=d.cat; });
+  const allStatuses = Object.keys(counts);
+  let fbIdx = 0;
+  const sLabels = allStatuses.sort((a,b)=>{
+    const ia = knownStatusOrder.indexOf(a), ib = knownStatusOrder.indexOf(b);
+    if(ia===-1 && ib===-1) return counts[b]-counts[a];
+    if(ia===-1) return 1;
+    if(ib===-1) return -1;
+    return ia-ib;
+  });
+  const statusColor = {};
+  sLabels.forEach(s=>{
+    statusColor[s] = knownStatusColor[s] || catFallbackColor[catByStatus[s]] || fallbackPalette[(fbIdx++)%fallbackPalette.length];
+  });
+  if(statusChartInstance) statusChartInstance.destroy();
+  statusChartInstance = new Chart(document.getElementById('statusChart'), {
+    type:'doughnut',
+    data:{ labels:sLabels, datasets:[{ data:sLabels.map(l=>counts[l]), backgroundColor:sLabels.map(l=>statusColor[l]), borderWidth:2, borderColor:'#fff' }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right',labels:{boxWidth:9,font:{size:10.5}}}},
+      onClick:(evt,els)=>{ if(!els.length) return; const st=sLabels[els[0].index]; openDrawer(st, T.filter(d=>d.status===st)); },
+      onHover:(evt,els)=>{ evt.native.target.style.cursor = els.length?'pointer':'default'; } }
+  });
+
+  // ---- Workload ----
+  const byPerson = {};
+  T.forEach(d=>{ byPerson[d.a]=byPerson[d.a]||{total:0,open:0,done:0}; byPerson[d.a].total++; if(d.cat==='Done') byPerson[d.a].done++; else byPerson[d.a].open++; });
+  const people = Object.keys(byPerson).sort((a,b)=>byPerson[b].open-byPerson[a].open);
+  const maxOpen = Math.max(1, ...people.map(p=>byPerson[p].open));
+  document.getElementById('workloadRows').innerHTML = people.map(p=>{
+    const v = byPerson[p]; const loadPct = Math.round(v.open/maxOpen*100);
+    const cls = v.open>=5?'#c0392b':v.open>=3?'#b8790f':'#1c7a4d';
+    return `<tr class="clickable" data-person="${p}"><td class="name-cell">${p}</td><td class="num">${v.open}</td><td class="num">${v.done}</td><td><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${loadPct}%;background:${cls};"></div></div></div></td></tr>`;
+  }).join('');
+  document.querySelectorAll('#workloadRows tr').forEach(tr=>tr.addEventListener('click', ()=>openDrawer(`${tr.dataset.person} — open tickets`, T.filter(d=>d.a===tr.dataset.person && d.cat!=='Done'))));
+
+  // ---- QA readiness — tracked at EPIC level only (QA-ETA is an epic field, not a story field),
+  // and an epic only counts as "missing QA ETA" if its Dev ETA is actually set — if Dev ETA
+  // itself is empty, QA can't be expected to have committed a date yet either.
+  const allEpicsForQA = Object.values(EPIC_DELIVERY).flat();
+  const qaSet = allEpicsForQA.filter(e => !e.devEtaMissing); // only epics where Dev ETA is set are "eligible" to be judged on QA ETA
+  const qaMissing = qaSet.filter(e => e.qaEtaMissing);
+  const qaSetPresent = qaSet.filter(e => !e.qaEtaMissing);
+  const epicToDrawerRow = e => ({ k: e.key, t: 'Epic', sum: e.sum, a: (e.assignees && e.assignees.length) ? e.assignees.join(', ') : 'Unassigned' });
+  document.getElementById('qaCards').innerHTML = `
+    <div class="card ${qaMissing.length>0?'bad':'ok'}" id="qaMissingCard"><p class="label">Missing QA ETA</p><p class="value">${qaMissing.length}<span class="pct">/${qaSet.length}</span></p><p class="hint">Epics with Dev ETA set but no QA target date</p></div>
+    <div class="card ok"><p class="label">QA ETA set</p><p class="value">${qaSetPresent.length}</p><p class="hint">Ready to plan test coverage</p></div>
+  `;
+  const qaCard = document.getElementById('qaMissingCard');
+  if(qaCard) qaCard.addEventListener('click', ()=>openDrawer('Missing QA ETA (epics)', qaMissing.map(epicToDrawerRow)));
+
+  // ---- Carry / repeat ----
+  document.getElementById('carryTitle').textContent = `Carried in from ${META.prevSprintName}`;
+  document.getElementById('carryDesc').textContent = `${carried.length} of ${total} tickets rolled forward`;
+  document.getElementById('carryList').innerHTML = carried.length ? ticketListHead() + carried.map(c=>ticketRow(c,c.status,statusColor[c.status])).join('') : '<div class="drawer-empty">Nothing carried in.</div>';
+  document.getElementById('repeatList').innerHTML = repeatCarry.length ? ticketListHead() + repeatCarry.map(r=>ticketRow(r,`${r.sprints.length} sprints`,'#7c3aad')).join('') : '<div class="drawer-empty">No repeat offenders.</div>';
+
+  // ---- Owner table ----
+  const byOwner = {};
+  T.forEach(d=>{ byOwner[d.a]=byOwner[d.a]||{total:0,done:0}; byOwner[d.a].total++; if(isDelivered(d)) byOwner[d.a].done++; });
+  const owners = Object.keys(byOwner).sort((a,b)=>pct(byOwner[a].done,byOwner[a].total)-pct(byOwner[b].done,byOwner[b].total));
+  document.getElementById('ownerRows').innerHTML = owners.map(o=>{
+    const v=byOwner[o]; const p=pct(v.done,v.total); const cls=p>=80?'ok':p>=40?'warn':'bad';
+    return `<tr class="clickable" data-owner="${o}"><td class="name-cell">${o}</td><td class="num">${v.total}</td><td class="num">${v.done}</td><td><span class="pill ${cls}">${p}%</span></td></tr>`;
+  }).join('');
+  document.querySelectorAll('#ownerRows tr').forEach(tr=>tr.addEventListener('click', ()=>openDrawer(tr.dataset.owner, T.filter(d=>d.a===tr.dataset.owner))));
+
+  // ---- Epic delivery banner + sections — built from whatever streams this
+  // program actually has, not a fixed EON-shaped pair. No fabricated
+  // deadline: EON's Aug 31 quarterly date has no meaning for another
+  // program, so this only claims what the data actually supports.
+  const qBanner = document.getElementById('quarterlyBanner');
+  const streamNameList = PROGRAM_STREAMS.length
+    ? PROGRAM_STREAMS.map(s => s.name).reduce((acc, n, i, arr) => {
+        if (i === 0) return n;
+        if (i === arr.length - 1) return acc + (arr.length > 2 ? ', and ' : ' and ') + n;
+        return acc + ', ' + n;
+      }, '')
+    : 'this program';
+  const sectionWord = PROGRAM_STREAMS.length === 1 ? 'section' : 'sections';
+  qBanner.innerHTML = `<span class="dot"></span><span><strong>Full delivery commitment, not just this sprint's slice.</strong> The ${sectionWord} below track every epic under ${streamNameList} end-to-end — including epics not yet in any sprint. Data pulled ${new Date(EPIC_DELIVERY_PULLED_AT).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}.</span>`;
+
+  const barColors = ['var(--blue)', '#a5650b', 'var(--green)', 'var(--red)'];
+  const sectionsEl = document.getElementById('epicDeliverySections');
+  sectionsEl.innerHTML = PROGRAM_STREAMS.map((s, i) => {
+    const subLabels = epicSubLabels(s.label);
+    const active = EPIC_DELIVERY_LABEL_FILTER[s.label] || '';
+    return `
+    <div class="section">
+      <div class="section-head" style="justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="bar" style="background:${barColors[i % barColors.length]};"></div><h2>${s.name} — end-to-end delivery</h2></div>
+        ${subLabels.length ? `<select id="epicLabelSelect-${i}" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface,#fff);color:var(--ink-2);">
+          <option value="">All labels</option>
+          ${subLabels.map(l => `<option value="${l.label}" ${l.label === active ? 'selected' : ''}>${l.label} (${l.count})</option>`).join('')}
+        </select>` : ''}
+      </div>
+      <p class="section-desc">Every epic carrying this label, in or out of the current sprint${i === 0 ? ' — the full quarterly commitment, not just this sprint’s slice' : ''} <span id="epicTotalBadge-${i}" style="color:var(--ink-3);font-weight:600;"></span></p>
+      <div class="panel">
+        <table><thead><tr><th>Epic</th><th>Epic status</th><th class="num">Tickets</th><th>Progress</th><th class="num">Blocked</th><th>Hygiene gaps</th><th>Owners</th></tr></thead><tbody id="epicDeliveryRows-${i}"></tbody></table>
+      </div>
+    </div>`;
+  }).join('');
+  PROGRAM_STREAMS.forEach((s, i) => {
+    const sel = document.getElementById(`epicLabelSelect-${i}`);
+    if(sel) sel.addEventListener('change', () => {
+      EPIC_DELIVERY_LABEL_FILTER[s.label] = sel.value;
+      loadAndRenderEpicSection(s, i);
+    });
+    loadAndRenderEpicSection(s, i);
+  });
+}
+
+// Sub-labels (e.g. a quarter tag such as "Tachyon_Rewards_JAS_26") found on
+// a stream's epics or on those epics' children, with how many epics carry each.
+function epicSubLabels(streamKey){
+  const counts = {};
+  (EPIC_DELIVERY[streamKey] || []).forEach(e => {
+    new Set([...(e.labels || []), ...(e.childLabels || [])]).forEach(l => {
+      if(l && l !== streamKey) counts[l] = (counts[l] || 0) + 1;
+    });
+  });
+  return Object.keys(counts).sort().map(l => ({ label: l, count: counts[l] }));
+}
+
+// A sub-label's epics are NOT necessarily a subset of the stream's already-
+// loaded epics, so picking one fetches that label's own full set from the API
+// (cached per label) instead of filtering what is already on screen.
+async function loadAndRenderEpicSection(s, i){
+  const filter = EPIC_DELIVERY_LABEL_FILTER[s.label] || '';
+  const tbodyId = `epicDeliveryRows-${i}`;
+  if(!filter){ renderEpicDelivery(EPIC_DELIVERY[s.label] || [], tbodyId, i); return; }
+  if(!EPIC_DELIVERY_ADHOC[filter]){
+    document.getElementById(tbodyId).innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:20px;">Loading ${filter}…</td></tr>`;
+    try{
+      const res = await fetch(PROXY_BASE + '/api/epic-delivery?program=' + encodeURIComponent(PROGRAM_ID) + '&label=' + encodeURIComponent(filter), { cache:'no-store', credentials:'include' });
+      const json = await res.json();
+      EPIC_DELIVERY_ADHOC[filter] = (json.data && json.data[filter]) || [];
+    }catch(e){
+      document.getElementById(tbodyId).innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:20px;">Could not load ${filter}.</td></tr>`;
+      return;
+    }
+  }
+  if((EPIC_DELIVERY_LABEL_FILTER[s.label] || '') === filter) renderEpicDelivery(EPIC_DELIVERY_ADHOC[filter], tbodyId, i);
+}
+
+function openEpicDrawer(epic){
+  document.getElementById('drawerTitle').textContent = `${epic.key} · ${epic.sum} (${epic.tickets} tickets)`;
+  const body = document.getElementById('drawerBody');
+  if(!epic.children.length){
+    body.innerHTML = `<div class="drawer-empty">No tickets created under this epic yet — it's still just a requirement, not broken into engineering work.<br><br><a href="${JIRA_BASE}${epic.key}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;">Open epic in Jira →</a></div>`;
+  } else {
+    body.innerHTML = ticketListHead() + epic.children.map(c => `
+      <div class="ticket-row" onclick="window.open('${JIRA_BASE}${c.k}','_blank')">
+        <span class="ticket-row-top">${typeIcon(c.t)}<span class="ticket-key">${c.k}</span><span class="ticket-title" title="${c.sum}">${c.sum}</span></span>
+        <span class="ticket-row-bottom"><span class="ticket-meta">${c.a}</span><span class="ticket-tag" style="background:#eef0f3;color:var(--ink-2);">${c.status}</span><span class="ticket-arrow">&rarr;</span></span>
+      </div>
+    `).join('');
+  }
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function renderEpicDelivery(epics, tbodyId, i0){
+  // Subtle total, Jira-filter style: epics and the tickets under them.
+  const badge = document.getElementById(`epicTotalBadge-${i0}`);
+  if(badge){
+    const totalTickets = epics.reduce((sum, e) => sum + e.tickets, 0);
+    badge.textContent = epics.length
+      ? `— ${epics.length} epic${epics.length === 1 ? '' : 's'} · ${totalTickets} ticket${totalTickets === 1 ? '' : 's'}`
+      : '— 0 epics';
+  }
+  // Sort riskiest first: zero tickets (not broken down) > blocked > lowest progress
+  const sorted = epics.slice().sort((a,b) => {
+    const aRisk = a.tickets === 0 ? 2 : (a.blocked > 0 ? 1 : 0);
+    const bRisk = b.tickets === 0 ? 2 : (b.blocked > 0 ? 1 : 0);
+    if(aRisk !== bRisk) return bRisk - aRisk;
+    const aPct = a.tickets ? a.done/a.tickets : 0;
+    const bPct = b.tickets ? b.done/b.tickets : 0;
+    return aPct - bPct;
+  });
+  if(!sorted.length){
+    document.getElementById(tbodyId).innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:20px;">No epics found for this label.</td></tr>`;
+    return;
+  }
+  document.getElementById(tbodyId).innerHTML = sorted.map((e, i) => {
+    const p = e.tickets ? pct(e.done, e.tickets) : 0;
+    const gaps = e.acMissing + e.etaMissing + e.qaMissing;
+    const notStarted = e.tickets === 0;
+    const barColor = notStarted ? '#c9cdd6' : p>=70?'#1c7a4d':p>=30?'#b8790f':'#c0392b';
+    const ownersText = e.assignees.length ? (e.assignees.length > 2 ? `${e.assignees.slice(0,2).join(', ')} +${e.assignees.length-2}` : e.assignees.join(', ')) : '—';
+    return `
+      <tr class="clickable" data-idx="${i}">
+        <td>${typeIcon('Epic')}<a class="epic-tag" href="${JIRA_BASE}${e.key}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${e.key}</a><div style="font-size:11.5px;color:var(--ink-2);margin-top:3px;max-width:280px;">${e.sum}</div></td>
+        <td><span class="pill muted">${e.epicStatus}</span></td>
+        <td class="num">${e.tickets}</td>
+        <td>${notStarted ? '<span class="pill bad">Not broken down</span>' : `<div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${barColor};"></div></div><span style="font-size:11px;color:var(--ink-2);width:32px;">${p}%</span></div>`}</td>
+        <td class="num">${e.blocked>0?`<span class="pill bad">${e.blocked}</span>`:'0'}</td>
+        <td>${gaps>0?`<span class="pill warn">${gaps} gaps</span>`:(notStarted?'—':'<span class="pill ok">clean</span>')}</td>
+        <td style="font-size:11.5px;color:var(--ink-2);">${ownersText}</td>
+      </tr>`;
+  }).join('');
+  // Reuse the SAME sorted array the rows were rendered from, so the clicked
+  // row always opens the matching epic even while a label filter is active.
+  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
+    tr.addEventListener('click', () => {
+      if(tr.dataset.idx === undefined) return;
+      openEpicDrawer(sorted[parseInt(tr.dataset.idx,10)]);
+    });
+  });
+}
+
+document.getElementById('myNameSelect').addEventListener('change', (e) => {
+  myName = e.target.value;
+  myTicketsOnly = myName !== '';
+  render();
+});
+
+function buildDigest(){
+  const T = currentSet();
+  const now = new Date(META.dataPulledAt);
+  const doneCategory = T.filter(d=>d.cat==='Done');
+  const doneResolved = T.filter(isDelivered);
+  const blocked = T.filter(d=>d.status==='Blocked');
+  const repeatCarry = T.filter(d=>d.sprints.length>=3);
+  const carried = T.filter(d=>d.sprints.includes(META.prevSprintName));
+  const spTotal = T.reduce((s,d)=>s+d.sp,0);
+  const spDone = doneResolved.reduce((s,d)=>s+d.sp,0);
+
+  const epicMap = {};
+  T.forEach(t=>{ const key=t.parent_key||'__none__'; epicMap[key]=epicMap[key]||{key:t.parent_key,name:t.parent_sum,tickets:0,sp:0,spDone:0}; epicMap[key].tickets++; epicMap[key].sp+=t.sp; if(t.cat==='Done') epicMap[key].spDone+=t.sp; });
+  const epics = Object.values(epicMap).filter(e=>e.key).sort((a,b)=>b.tickets-a.tickets).slice(0,6)
+    .map(e=>({ key:e.key, name:e.name, tickets:e.tickets, storyPoints:e.sp, pctDone: pct(e.spDone,e.sp) }));
+
+  const byPerson = {};
+  T.forEach(d=>{ byPerson[d.a]=byPerson[d.a]||{open:0,done:0}; if(d.cat==='Done') byPerson[d.a].done++; else byPerson[d.a].open++; });
+  const workload = Object.entries(byPerson).sort((a,b)=>b[1].open-a[1].open).slice(0,6)
+    .map(([name,v])=>({ name, openTickets:v.open, doneTickets:v.done }));
+
+  const qaEpicsForDigest = Object.values(EPIC_DELIVERY).flat();
+  const qaEligibleEpics = qaEpicsForDigest.filter(e => !e.devEtaMissing);
+  const qaMissingForDigest = qaEligibleEpics.filter(e => e.qaEtaMissing).length;
+
+  return {
+    sprintName: META.currentSprintName,
+    sprintState: META.currentSprintState,
+    daysLeft: META.daysLeft,
+    totalTickets: T.length,
+    storyPointsCommitted: spTotal,
+    storyPointsCompleted: spDone,
+    pctComplete: pct(spDone, spTotal),
+    blockedTickets: blocked.map(b=>({ key:b.k, summary:b.sum, assignee:b.a, blockedSince:b.blocked_since })),
+    repeatCarryoverTickets: repeatCarry.map(r=>({ key:r.k, summary:r.sum, assignee:r.a, sprintsInScope:r.sprints.length })),
+    carriedInFromPreviousSprint: carried.length,
+    epics,
+    workloadTopByOpenTickets: workload,
+    qaEtaMissingCount: qaMissingForDigest,
+    qaEtaTotalOpenTickets: qaEligibleEpics.length,
+    myFilterActive: myTicketsOnly ? myName : null,
+  };
+}
+
+document.getElementById('aiGenerateBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('aiGenerateBtn');
+  const resultEl = document.getElementById('aiResult');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" style="border-color:rgba(124,58,173,0.25);border-top-color:var(--violet);"></span> Generating…';
+  resultEl.innerHTML = '';
+  try {
+    const digest = buildDigest();
+    const res = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(digest),
+    });
+    if(res.status === 401){ showLoginGate(); return; }
+    const data = await res.json();
+    if(!res.ok || data.error){ throw new Error(data.error || 'Unknown error'); }
+    resultEl.innerHTML = `
+      <p style="font-size:13.5px;line-height:1.6;color:var(--ink);margin:0 0 14px;">${data.summary}</p>
+      <div class="grid2">
+        <div>
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--red);margin:0 0 8px;">Top risks</p>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.7;">${(data.risks||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
+        </div>
+        <div>
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--blue);margin:0 0 8px;">Recommended actions</p>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.7;">${(data.actions||[]).map(a=>`<li>${a}</li>`).join('')}</ul>
+        </div>
+      </div>
+      <p style="font-size:10px;color:var(--ink-3);margin:14px 0 0;font-family:var(--mono);">Generated ${new Date(data.generatedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · AI-generated, verify before treating as final</p>
+    `;
+  } catch(e) {
+    resultEl.innerHTML = `<p style="font-size:12.5px;color:var(--red);">Couldn't generate summary: ${e.message}</p>`;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '✨ Generate with Claude';
+});
+
+async function boot(){
+  const refreshBtn = document.getElementById('refreshBtn');
+  if(refreshBtn){ refreshBtn.disabled = true; refreshBtn.innerHTML = '<span class="spin"></span> Refreshing…'; }
+  document.getElementById('loadingText').textContent = 'Loading sprint data from Jira — pulls sprint, epic, and status data, can take a few seconds…';
+  document.getElementById('loadingOverlay').classList.add('show');
+
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials:'include' });
+    const me = await meRes.json();
+    if(!me.authenticated){ showLoginGate(); return; }
+    // Every load — first visit, hard refresh, or the in-page Refresh button
+    // — starts on "Everyone". A previous session used to remember the last
+    // person picked (via localStorage) and silently re-apply that filter,
+    // which looked like the dashboard was stuck showing one person's data.
+    // The filter is now purely a this-view choice: pick a name from the
+    // dropdown to filter, and the next load always starts unfiltered again.
+    myTicketsOnly = false;
+    myName = '';
+  } catch(e) { showLoginGate(); return; }
+
+  try {
+    const cfgRes = await fetch('/api/config', { credentials: 'include' });
+    if(cfgRes.ok){
+      const cfg = await cfgRes.json();
+      if(cfg.aiSummaryEnabled){ document.getElementById('aiPanel').style.display = 'block'; }
+    }
+  } catch(e) { /* AI panel stays hidden if this fails — safe default */ }
+
+  const statusEl = document.getElementById('liveStatus');
+  try {
+    // Sprint ticket state changes fast (statuses, assignees, blockers) and a
+    // stale sessionStorage hit here was previously indistinguishable from a
+    // real "no data" backend problem — clicking Refresh just re-hit the same
+    // 5-minute cache key and kept showing the old snapshot. Always bypass the
+    // cache for this call, matching the epic-delivery fetch below.
+    const res = await fetch(PROXY_BASE + '/api/sprint-health?program=' + encodeURIComponent(PROGRAM_ID), { cache:'no-store', credentials:'include' });
+    if(res.status === 401){ showLoginGate(); return; }
+    if(res.ok){
+      const json = await res.json();
+      if(json.tickets && json.meta){
+        ALL_TICKETS = json.tickets;
+        META = { ...EMBEDDED_META, ...json.meta };
+        liveMode = true;
+        if(statusEl){ statusEl.textContent='Live'; statusEl.className='live-pill live'; }
+      }
+    } else { throw new Error('proxy responded ' + res.status); }
+  } catch(e) {
+    console.warn('Live data fetch failed.', e);
+    if(statusEl){ statusEl.textContent='Data unavailable'; statusEl.className='live-pill offline'; }
+  }
+
+  try {
+    const epicRes = await fetch(PROXY_BASE + '/api/epic-delivery?program=' + encodeURIComponent(PROGRAM_ID), { cache:'no-store', credentials:'include' });
+    if(epicRes.ok){
+      const epicJson = await epicRes.json();
+      if(epicJson.data && epicJson.meta){
+        EPIC_DELIVERY = epicJson.data;
+        EPIC_DELIVERY_PULLED_AT = epicJson.meta.dataPulledAt;
+        PROGRAM_STREAMS = epicJson.meta.streams || [];
+      }
+    }
+  } catch(e) {
+    console.warn('Epic delivery live fetch failed, using last known snapshot.', e);
+  }
+
+  render();
+
+  document.getElementById('loadingOverlay').classList.remove('show');
+  const btn = document.getElementById('refreshBtn');
+  if(btn){ btn.disabled = false; btn.innerHTML = '↻ Refresh'; }
+}
+boot();
+</script>
+</body>
+</html>

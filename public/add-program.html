@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Add Program — Governance Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#f6f6fb; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --ink:#1c1a2e; --ink-2:#5c5875; --ink-3:#948fac;
+    --navy:#2a2160; --blue:#1a56a8; --blue-bg:#e9f1fb;
+    --green:#1c7a4d; --green-bg:#e8f5ee; --amber:#b8790f; --amber-ink:#3a2606; --amber-bg:#fbf1de; --red:#c0392b; --red-bg:#fceceb;
+    --mono:'SF Mono','Consolas',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:40px 24px;min-height:100vh;}
+  .wrap{max-width:640px;margin:0 auto;}
+  .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);text-decoration:none;font-size:13px;margin-bottom:18px;}
+  .back-link:hover{color:var(--ink);}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:var(--navy);font-weight:700;margin:0 0 6px;}
+  h1{font-size:24px;font-weight:800;margin:0 0 8px;letter-spacing:-0.01em;}
+  .sub{font-size:13.5px;color:var(--ink-2);margin:0 0 28px;line-height:1.5;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 30px;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.10);}
+  label{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin:0 0 6px;}
+  .hint{font-size:11.5px;color:var(--ink-3);margin:4px 0 0;line-height:1.4;}
+  input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13.5px;color:var(--ink);font-family:inherit;}
+  input[type=text]:focus{outline:none;border-color:var(--blue);}
+  .field{margin-bottom:20px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .streams-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .streams-head label{margin:0;}
+  .stream-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:10px;align-items:start;}
+  .stream-row input{width:100%;}
+  .remove-stream{background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:8px 6px;line-height:1;}
+  .add-stream-btn{background:var(--blue-bg);color:var(--blue);border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  .submit-row{margin-top:28px;display:flex;align-items:center;gap:14px;}
+  .submit-btn{background:var(--amber);color:#fff;border:none;border-radius:24px;padding:11px 26px;font-size:13.5px;font-weight:700;cursor:pointer;}
+  .submit-btn:disabled{opacity:0.6;cursor:default;}
+  .msg{border-radius:10px;padding:12px 15px;font-size:12.5px;margin-top:16px;display:none;line-height:1.5;}
+  .msg.error{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(192,57,43,0.25);}
+  .msg.success{display:block;background:var(--green-bg);color:var(--green);border:1px solid rgba(28,122,77,0.25);}
+  .streams-note{background:var(--amber-bg);color:var(--amber-ink);border-radius:10px;padding:11px 14px;font-size:11.5px;line-height:1.5;margin-bottom:14px;}
+  .suggest-box{position:absolute;left:0;right:0;top:100%;margin-top:2px;background:#fff;border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 8px 20px -6px rgba(20,21,28,0.18);z-index:20;display:none;max-height:180px;overflow-y:auto;}
+  .suggest-box.open{display:block;}
+  .suggest-item{padding:8px 12px;font-size:12.5px;color:var(--ink);cursor:pointer;}
+  .suggest-item:hover{background:var(--blue-bg);}
+  .suggest-item .sub{font-size:10.5px;color:var(--ink-3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back-link" href="/manage-programs.html" id="backLink">&larr; Back to Manage Programs</a>
+  <p class="eyebrow">Governance Dashboard</p>
+  <h1 id="pageTitle">Add a Program</h1>
+  <p class="sub" id="pageSub">Fill in the same details every program needs — once submitted, this program's Hygiene, Sprint Health, Program Delivery Intelligence, and Executive dashboards all light up immediately, using the same templates every other program uses. No deployment, no config file.</p>
+  <p class="sub" style="margin-top:-20px;"><strong style="color:var(--red);">*</strong> Required — without these, no dashboard can be created for the program.</p>
+
+  <div class="card">
+    <form id="addForm">
+      <div class="field">
+        <label for="fName">Program name <span style="color:var(--red);">*</span></label>
+        <input type="text" id="fName" placeholder="e.g. Rewards PLE" required>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="fQuarter">Quarter</label>
+          <input type="text" id="fQuarter" placeholder="e.g. Q3 FY2026">
+        </div>
+        <div class="field">
+          <label for="fProjectKey">Jira project key <span style="color:var(--red);">*</span></label>
+          <input type="text" id="fProjectKey" placeholder="e.g. TRC" required>
+        </div>
+      </div>
+      <div class="field" style="position:relative;">
+        <label for="fBoardId">Jira board ID <span style="color:var(--red);">*</span></label>
+        <input type="text" id="fBoardId" placeholder="e.g. 6579, or start typing a board name" required autocomplete="off">
+        <p class="hint">From the board URL: .../boards/&lt;this number&gt; — or type a board name to search.</p>
+        <div class="suggest-box" id="boardSuggestBox"></div>
+      </div>
+
+      <div class="field">
+        <div class="streams-head">
+          <label style="margin:0;">Tracking stream(s) <span style="color:var(--red);">*</span></label>
+          <button type="button" class="add-stream-btn" id="addStreamBtn">+ Add another stream</button>
+        </div>
+        <p class="streams-note">A stream is a Jira label used to scope this program's work — one is enough for most programs. Add more only if you need to track separate workstreams (like EON's LE / Add-On split) within the same project. Start typing to see existing labels.</p>
+        <div id="streamsContainer"></div>
+      </div>
+
+      <div class="submit-row">
+        <button type="submit" class="submit-btn" id="submitBtn">Add Program</button>
+      </div>
+      <p class="hint" id="idHint" style="display:none;margin-top:6px;"></p>
+      <div class="msg" id="formMsg"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e5e3ee;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#2a2160;font-weight:700;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#1c1a2e;">Sign in to continue</h1>
+        <p style="font-size:13px;color:#5c5875;line-height:1.5;margin:0 0 22px;">Requires your Atlassian account.</p>
+        <button onclick="window.location.href='/api/auth/login?returnTo=/add-program.html'" style="width:100%;padding:11px;border-radius:24px;border:none;background:#b8790f;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+let streamCount = 0;
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// Reusable for both the board-ID field and every stream-label field — keeps
+// this logic in one place rather than duplicated per field.
+function wireSuggestions(inputEl, boxEl, suggestType, onPick) {
+  const fetchSuggestions = debounce(async (q) => {
+    if (!q || q.length < 2) { boxEl.classList.remove('open'); boxEl.innerHTML = ''; return; }
+    try {
+      const res = await fetch(`/api/programs?suggest=${suggestType}&q=${encodeURIComponent(q)}`, { credentials: 'include' });
+      const json = await res.json();
+      const items = json.suggestions || [];
+      if (!items.length) { boxEl.classList.remove('open'); boxEl.innerHTML = ''; return; }
+      boxEl.innerHTML = items.map((item, i) => {
+        const label = typeof item === 'string' ? item : item.name;
+        const sub = typeof item === 'string' ? '' : `<div class="sub">Board ID: ${item.id}</div>`;
+        return `<div class="suggest-item" data-idx="${i}">${label}${sub}</div>`;
+      }).join('');
+      boxEl.querySelectorAll('.suggest-item').forEach((el, i) => {
+        // mousedown (not click) so this fires before the input's blur hides the box
+        el.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          onPick(items[i]);
+          boxEl.classList.remove('open'); boxEl.innerHTML = '';
+        });
+      });
+      boxEl.classList.add('open');
+    } catch (e) { boxEl.classList.remove('open'); }
+  }, 250);
+
+  inputEl.addEventListener('input', () => fetchSuggestions(inputEl.value.trim()));
+  inputEl.addEventListener('blur', () => setTimeout(() => boxEl.classList.remove('open'), 150));
+}
+
+function addStreamRow(labelVal, nameVal){
+  streamCount++;
+  const id = streamCount;
+  const row = document.createElement('div');
+  row.className = 'stream-row';
+  row.dataset.streamId = id;
+  row.innerHTML = `
+    <div style="position:relative;">
+      <input type="text" class="stream-label" placeholder="Jira label, e.g. Tachyon_Rewards" value="${labelVal || ''}" autocomplete="off">
+      <div class="suggest-box"></div>
+    </div>
+    <input type="text" class="stream-name" placeholder="Display name, e.g. Tachyon Rewards" value="${nameVal || ''}">
+    <button type="button" class="remove-stream" title="Remove this stream">&times;</button>
+  `;
+  row.querySelector('.remove-stream').addEventListener('click', () => {
+    // Always leave at least one stream row — a program with zero streams can't fetch anything.
+    if (document.querySelectorAll('.stream-row').length > 1) row.remove();
+  });
+  const labelInput = row.querySelector('.stream-label');
+  const labelBox = row.querySelector('.suggest-box');
+  const nameInput = row.querySelector('.stream-name');
+  wireSuggestions(labelInput, labelBox, 'labels', (picked) => {
+    labelInput.value = picked;
+    // If the display-name field is still empty, prefill it from the picked
+    // label so the user isn't forced to type the same thing twice.
+    if (!nameInput.value.trim()) nameInput.value = picked.replace(/_/g, ' ');
+  });
+  document.getElementById('streamsContainer').appendChild(row);
+}
+
+document.getElementById('addStreamBtn').addEventListener('click', () => addStreamRow('', ''));
+
+wireSuggestions(document.getElementById('fBoardId'), document.getElementById('boardSuggestBox'), 'boards', (picked) => {
+  document.getElementById('fBoardId').value = picked.id;
+});
+
+const EDIT_ID = new URLSearchParams(window.location.search).get('edit');
+
+document.getElementById('addForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('formMsg');
+  const btn = document.getElementById('submitBtn');
+  msg.className = 'msg'; msg.textContent = '';
+
+  const streams = Array.from(document.querySelectorAll('.stream-row')).map(row => ({
+    label: row.querySelector('.stream-label').value.trim(),
+    name: row.querySelector('.stream-name').value.trim(),
+  })).filter(s => s.label);
+
+  const payload = {
+    name: document.getElementById('fName').value.trim(),
+    quarter: document.getElementById('fQuarter').value.trim(),
+    projectKey: document.getElementById('fProjectKey').value.trim(),
+    boardId: document.getElementById('fBoardId').value.trim(),
+    streams,
+  };
+
+  if (EDIT_ID) {
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    try {
+      const res = await fetch('/api/programs', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: EDIT_ID, ...payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.');
+
+      msg.className = 'msg success';
+      msg.textContent = `"${json.program.name}" was updated \u2014 changes are live now. Taking you back to Manage Programs\u2026`;
+      setTimeout(() => { window.location.href = '/manage-programs.html'; }, 1500);
+    } catch (err) {
+      msg.className = 'msg error';
+      msg.textContent = err.message;
+      btn.disabled = false; btn.textContent = 'Save Changes';
+    }
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Adding\u2026';
+  try {
+    const res = await fetch('/api/programs', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Something went wrong.');
+
+    msg.className = 'msg success';
+    msg.textContent = `"${json.program.name}" was added. Its four dashboards are live now \u2014 taking you back to the governance shell\u2026`;
+    setTimeout(() => { window.location.href = `/governance/${json.program.id}/executive`; }, 1800);
+  } catch (err) {
+    msg.className = 'msg error';
+    msg.textContent = err.message;
+    btn.disabled = false; btn.textContent = 'Add Program';
+  }
+});
+
+async function boot(){
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    if (!me.authenticated) { showLoginGate(); return; }
+  } catch (e) { showLoginGate(); return; }
+
+  if (EDIT_ID) {
+    document.getElementById('pageTitle').textContent = 'Edit Program';
+    document.getElementById('pageSub').textContent = 'Change this program’s project key, board, or tracking streams — add, remove, or fix a label. Changes take effect immediately, no deployment needed.';
+    document.getElementById('submitBtn').textContent = 'Save Changes';
+    document.getElementById('idHint').style.display = 'block';
+    document.getElementById('idHint').textContent = `Editing "${EDIT_ID}" — renaming won't change its dashboard URLs, which stay keyed to this id.`;
+    try {
+      const res = await fetch('/api/programs', { cache: 'no-store', credentials: 'include' });
+      const json = await res.json();
+      const program = (json.programs || []).find(p => p.id === EDIT_ID);
+      if (!program) throw new Error(`No program with id "${EDIT_ID}" found.`);
+      if (program.builtIn) throw new Error('EON is a built-in program and can’t be edited here.');
+      document.getElementById('fName').value = program.name || '';
+      document.getElementById('fQuarter').value = program.quarter || '';
+      document.getElementById('fProjectKey').value = program.projectKey || '';
+      document.getElementById('fBoardId').value = program.boardId || '';
+      (program.streams || []).forEach(s => addStreamRow(s.label, s.name));
+      if (!(program.streams || []).length) addStreamRow('', '');
+    } catch (err) {
+      document.getElementById('formMsg').className = 'msg error';
+      document.getElementById('formMsg').textContent = err.message;
+      document.getElementById('submitBtn').disabled = true;
+      addStreamRow('', '');
+    }
+    return;
+  }
+
+  addStreamRow('', ''); // start with exactly one stream row — the common case
+}
+boot();
+</script>
+</body>
+</html>

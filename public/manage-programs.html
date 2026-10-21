@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Manage Programs — Governance Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#f6f6fb; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --ink:#1c1a2e; --ink-2:#5c5875; --ink-3:#948fac;
+    --navy:#2a2160; --blue:#1a56a8; --blue-bg:#e9f1fb;
+    --green:#1c7a4d; --green-bg:#e8f5ee; --amber:#b8790f; --amber-ink:#3a2606; --amber-bg:#fbf1de; --red:#c0392b; --red-bg:#fceceb;
+    --mono:'SF Mono','Consolas',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:40px 24px;min-height:100vh;}
+  .wrap{max-width:720px;margin:0 auto;}
+  .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);text-decoration:none;font-size:13px;margin-bottom:18px;}
+  .back-link:hover{color:var(--ink);}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:var(--navy);font-weight:700;margin:0 0 6px;}
+  h1{font-size:24px;font-weight:800;margin:0 0 8px;letter-spacing:-0.01em;}
+  .sub{font-size:13.5px;color:var(--ink-2);margin:0 0 24px;line-height:1.5;}
+  .program-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.10);}
+  .program-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .program-name{font-size:16px;font-weight:800;margin:0;}
+  .program-meta{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);margin:4px 0 0;}
+  .badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;background:var(--blue-bg);color:var(--blue);margin-left:8px;vertical-align:1px;}
+  .actions{display:flex;gap:8px;flex-shrink:0;}
+  .btn{border:none;border-radius:20px;padding:8px 16px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  .btn-edit{background:var(--blue-bg);color:var(--blue);}
+  .btn-delete{background:var(--red-bg);color:var(--red);}
+  .btn-delete:disabled, .btn-edit:disabled{opacity:0.5;cursor:not-allowed;}
+  .streams-list{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px;}
+  .streams-list li{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11.5px;color:var(--ink-2);font-family:var(--mono);}
+  .empty{color:var(--ink-3);font-size:13px;text-align:center;padding:40px 0;}
+  .msg{border-radius:10px;padding:12px 15px;font-size:12.5px;margin-bottom:16px;display:none;line-height:1.5;}
+  .msg.error{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(192,57,43,0.25);}
+  .msg.success{display:block;background:var(--green-bg);color:var(--green);border:1px solid rgba(28,122,77,0.25);}
+  .add-link{display:inline-flex;align-items:center;gap:6px;background:var(--amber);color:#fff;text-decoration:none;border-radius:24px;padding:11px 22px;font-size:13.5px;font-weight:700;margin-bottom:24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back-link" href="/" id="backLink">&larr; Back to Governance Dashboard</a>
+  <p class="eyebrow">Governance Dashboard</p>
+  <h1>Manage Programs</h1>
+  <p class="sub">Edit an existing program's Jira project key, board, or tracking streams — or remove one entirely. Every change here takes effect immediately, no deployment needed.</p>
+  <a class="add-link" href="/add-program.html">+ Add Program</a>
+  <div class="msg" id="pageMsg"></div>
+  <div id="list"></div>
+</div>
+
+<script>
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e5e3ee;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#2a2160;font-weight:700;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#1c1a2e;">Sign in to continue</h1>
+        <p style="font-size:13px;color:#5c5875;line-height:1.5;margin:0 0 22px;">Requires your Atlassian account.</p>
+        <button onclick="window.location.href='/api/auth/login?returnTo=/manage-programs.html'" style="width:100%;padding:11px;border-radius:24px;border:none;background:#b8790f;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+let CAN_DELETE = false;
+
+function showMsg(cls, text){
+  const m = document.getElementById('pageMsg');
+  m.className = 'msg ' + cls;
+  m.textContent = text;
+}
+
+async function loadPrograms(){
+  const list = document.getElementById('list');
+  list.innerHTML = '<p class="empty">Loading programs…</p>';
+  try {
+    const res = await fetch('/api/programs', { cache: 'no-store', credentials: 'include' });
+    const json = await res.json();
+    const programs = json.programs || [];
+    if (!programs.length) { list.innerHTML = '<p class="empty">No programs yet.</p>'; return; }
+
+    list.innerHTML = '';
+    programs.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'program-card';
+      const streamsHtml = (p.streams || []).map(s => `<li>${s.label}</li>`).join('');
+      const editDisabled = p.builtIn ? 'disabled title="Built-in program — edit env vars to change EON"' : '';
+      const deleteDisabled = (p.builtIn || !CAN_DELETE) ? 'disabled' : '';
+      const deleteTitle = p.builtIn ? 'title="Built-in program cannot be deleted"' : (!CAN_DELETE ? 'title="Admin only"' : '');
+      card.innerHTML = `
+        <div class="program-head">
+          <div>
+            <p class="program-name">${p.name}${p.builtIn ? '<span class="badge">Built-in</span>' : ''}</p>
+            <p class="program-meta">${p.projectKey} &middot; board ${p.boardId}${p.quarter ? ' &middot; ' + p.quarter : ''}</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-edit" data-id="${p.id}" ${editDisabled}>Edit</button>
+            <button class="btn btn-delete" data-id="${p.id}" data-name="${p.name}" ${deleteDisabled} ${deleteTitle}>Delete</button>
+          </div>
+        </div>
+        <ul class="streams-list">${streamsHtml}</ul>
+      `;
+      list.appendChild(card);
+    });
+
+    list.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => { window.location.href = `/add-program.html?edit=${encodeURIComponent(btn.dataset.id)}`; });
+    });
+    list.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id, name = btn.dataset.name;
+        if (!confirm(`Delete "${name}"? This removes it and all four of its dashboards immediately. This cannot be undone.`)) return;
+        btn.disabled = true; btn.textContent = 'Deleting…';
+        try {
+          const res = await fetch('/api/programs', {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error || 'Something went wrong.');
+          showMsg('success', `"${name}" was deleted.`);
+          loadPrograms();
+        } catch (err) {
+          showMsg('error', err.message);
+          btn.disabled = false; btn.textContent = 'Delete';
+        }
+      });
+    });
+  } catch (e) {
+    list.innerHTML = '<p class="empty">Could not load programs right now.</p>';
+  }
+}
+
+async function boot(){
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    if (!me.authenticated) { showLoginGate(); return; }
+    CAN_DELETE = !!me.isAdmin;
+  } catch (e) { showLoginGate(); return; }
+  loadPrograms();
+}
+boot();
+</script>
+</body>
+</html>

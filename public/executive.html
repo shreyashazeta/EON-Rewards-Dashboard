@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Executive Dashboard</title>
+<style>
+  :root{
+    --bg:#f4f4fa; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --ink:#1c1a2e; --ink-2:#5c5875; --ink-3:#948fac;
+    --navy:#2a2160; --blue:#1a56a8; --blue-bg:#e9f1fb;
+    --green:#1c7a4d; --green-bg:#e8f5ee; --amber:#b8790f; --amber-ink:#3a2606; --amber-bg:#fbf1de; --red:#c0392b; --red-bg:#fceceb;
+    --violet:#5b3fa0; --violet-bg:#f0ecfa;
+    --shadow:0 1px 2px rgba(28,26,46,0.04), 0 8px 24px -10px rgba(28,26,46,0.10);
+    --mono:'SF Mono','Consolas',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px;min-height:100vh;}
+  .wrap{max-width:1100px;margin:0 auto;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:var(--violet);font-weight:700;margin:0 0 6px;}
+  h1{font-size:28px;font-weight:800;margin:0 0 24px;letter-spacing:-0.015em;color:var(--ink);}
+
+  .stream-toggle{display:inline-flex;gap:6px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:20px;box-shadow:var(--shadow);}
+  .bug-filter{display:inline-flex;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;}
+  .bug-filter button{border:none;background:transparent;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;color:var(--ink-2);cursor:pointer;}
+  .bug-filter button.active{background:var(--red);color:#fff;}
+  .priority-chip{font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:0.02em;}
+  .priority-chip.priority-p1{background:var(--red-bg);color:var(--red);}
+  .priority-chip.priority-p2{background:var(--amber-bg);color:var(--amber);}
+  .priority-chip.priority-p3{background:var(--blue-bg);color:var(--blue);}
+  .priority-chip.priority-unset,.priority-chip.priority-p4,.priority-chip.priority-p5{background:var(--bg);color:var(--ink-3);}
+  .stream-toggle button{border:none;background:transparent;padding:8px 18px;border-radius:7px;font-size:12.5px;font-weight:700;color:var(--ink-2);cursor:pointer;transition:background .12s,color .12s;}
+  .stream-toggle button.active{background:var(--navy);color:#fff;}
+  .stream-toggle button:not(.active):hover{background:var(--bg);color:var(--ink);}
+
+  .health-card{
+    display:flex;align-items:center;gap:20px;background:var(--card);border:1px solid var(--border);border-radius:16px;
+    padding:24px 28px;margin-bottom:22px;box-shadow:var(--shadow);border-left:5px solid var(--navy);
+  }
+  .rag-dot{width:26px;height:26px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 4px rgba(0,0,0,0.04);}
+  .health-card h2{font-size:16.5px;font-weight:800;margin:0 0 5px;color:var(--ink);}
+  .health-card p{font-size:12.5px;color:var(--ink-2);margin:0;line-height:1.5;}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:22px;}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow);border-top:3px solid var(--panel-accent,var(--violet));}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .panel h3{font-size:13px;font-weight:800;margin:0;color:var(--ink);text-transform:uppercase;letter-spacing:0.03em;}
+  .metric-row{display:flex;gap:24px;}
+  .metric{flex:1;transition:transform .12s;}
+  .metric[id^="metric-"]:hover{transform:translateY(-1px);}
+  .metric .n{font-family:var(--mono);font-size:26px;font-weight:800;color:var(--ink);}
+  .metric .n.n-good{color:var(--green);}
+  .metric .n.n-bad{color:var(--red);}
+  .metric .n.n-neutral{color:var(--ink-3);}
+  .metric .l{font-size:11px;color:var(--ink-2);margin-top:5px;font-weight:600;}
+
+  .risks-panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:22px;box-shadow:var(--shadow);border-left:5px solid var(--red);}
+  .risk-placeholder{padding:22px;text-align:center;color:var(--ink-3);font-size:13px;border:1px dashed var(--border-strong);border-radius:10px;}
+
+  .insights-panel{
+    background:linear-gradient(155deg,#f7f3fd,#eef6fb);border:1px solid #e4dcf5;border-radius:14px;
+    padding:24px 28px;text-align:center;box-shadow:var(--shadow);
+  }
+  .insights-panel .tag{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#fff;background:var(--amber);border-radius:20px;padding:4px 12px;margin-bottom:10px;}
+  .insights-panel h3{font-size:16px;margin:0 0 8px;color:var(--ink);font-weight:800;}
+  .insights-panel p{font-size:12.5px;color:var(--ink-2);margin:0 auto;max-width:480px;line-height:1.6;}
+
+  .not-connected{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    padding:80px 40px;color:var(--ink-2);
+  }
+  .not-connected .badge{display:inline-block;font-size:11px;font-weight:800;padding:4px 13px;border-radius:20px;background:var(--amber);color:#fff;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.05em;}
+  .not-connected h2{font-size:19px;color:var(--ink);margin:0 0 8px;}
+  .not-connected p{font-size:13.5px;max-width:420px;margin:0;line-height:1.6;}
+
+  .roadmap-panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px 24px;margin-bottom:22px;box-shadow:var(--shadow);}
+  .roadmap-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;padding-left:12px;border-left:5px solid var(--blue);}
+  .roadmap-head h3{font-size:16px;font-weight:800;margin:0;color:var(--ink);}
+  table.roadmap-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:16px;}
+  table.roadmap-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-3);font-weight:700;padding:0 8px 8px;border-bottom:2px solid var(--border-strong);}
+  table th.sortable{cursor:pointer;user-select:none;}
+  table th.sortable:hover{color:var(--ink);}
+  table.roadmap-table th.num{text-align:right;}
+  table.roadmap-table td{padding:10px 8px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:top;}
+  table.roadmap-table td.num{text-align:right;font-family:var(--mono);}
+  table.roadmap-table tr:last-child td{border-bottom:none;}
+  table.roadmap-table tr.clickable{cursor:pointer;}
+  table.roadmap-table tr.clickable:hover{background:#f7f6fc;}
+  .epic-tag{display:inline-block;font-size:10.5px;font-weight:700;color:var(--blue);background:var(--blue-bg);padding:2px 8px;border-radius:6px;text-decoration:none;}
+  .bar-track{height:7px;background:var(--bg);border-radius:4px;overflow:hidden;min-width:70px;border:1px solid var(--border);}
+  .bar-fill{height:100%;border-radius:4px;}
+  .ai-summary-box{margin-top:18px;padding-top:18px;border-top:1px solid var(--border);}
+  .ai-summary-box .tag{display:inline-block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#fff;background:var(--violet);border-radius:20px;padding:3px 10px;margin-bottom:10px;}
+  .ai-summary-box p{font-size:12.5px;color:var(--ink-2);line-height:1.6;margin:0 0 10px;}
+  .ai-summary-box ul{margin:0 0 10px;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7;}
+  .ai-loading{font-size:12px;color:var(--ink-3);font-style:italic;}
+
+  .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(28,26,46,0.4);z-index:60;align-items:flex-start;justify-content:center;padding:60px 20px;}
+  .drawer-overlay.open{display:flex;}
+  .drawer{background:var(--card);border:1px solid var(--border);border-radius:14px;max-width:640px;width:100%;max-height:74vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(28,26,46,0.35);}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+  .drawer-head h3{font-size:14px;font-weight:700;margin:0;color:var(--ink);}
+  .drawer-head button{border:none;background:none;font-size:19px;color:var(--ink-3);cursor:pointer;line-height:1;padding:4px;}
+  .drawer-body{overflow-y:auto;padding:6px 10px 10px;}
+  .drawer-empty{padding:22px;text-align:center;font-size:12px;color:var(--ink-3);}
+  .drawer-row{display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border);}
+  .drawer-row:hover{background:#f7f6fc;}
+  .drawer-row:last-child{border-bottom:none;}
+  .drawer-row a.key{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--blue);text-decoration:none;flex-shrink:0;width:64px;}
+  .drawer-row .sum{font-size:12.5px;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .drawer-row .type-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--violet-bg);color:var(--violet);flex-shrink:0;width:44px;text-align:center;}
+  .drawer-row .status-badge{font-size:10.5px;color:var(--ink-2);flex-shrink:0;width:150px;text-align:right;font-weight:600;}
+  .drawer-col-head{display:flex;align-items:center;gap:10px;padding:6px 8px 10px;font-size:9.5px;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;color:var(--ink-3);border-bottom:2px solid var(--border-strong);}
+  .drawer-col-head .sortable{cursor:pointer;user-select:none;}
+  .drawer-col-head .sortable:hover{color:var(--ink);}
+  .drawer-col-head .c-key{width:64px;flex-shrink:0;}
+  .drawer-col-head .c-sum{flex:1;}
+  .drawer-col-head .c-type{width:44px;flex-shrink:0;text-align:center;}
+  .drawer-col-head .c-status{width:150px;flex-shrink:0;text-align:right;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="if(event.target===this) closeDrawer()">
+  <div class="drawer">
+    <div class="drawer-head"><h3 id="drawerTitle">Items</h3><button onclick="closeDrawer()" aria-label="Close">&times;</button></div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+</div>
+
+<script src="/js/cache-client.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const programId = params.get('program') || 'eon';
+const programName = programId === 'eon' ? 'EON' : programId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+const app = document.getElementById('app');
+
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e5e3ee;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#5b3fa0;font-weight:700;margin:0 0 10px;">Executive Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#1c1a2e;">Sign in to continue</h1>
+        <p style="font-size:13px;color:#5c5875;line-height:1.5;margin:0 0 22px;">Requires your Atlassian account.</p>
+        <button onclick="window.location.href='/api/auth/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search)" style="width:100%;padding:11px;border-radius:24px;border:none;background:#b8790f;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+async function boot() {
+  // Only checked directly if this page is opened outside the shell (e.g. a
+  // bookmark) — when loaded inside the governance shell's iframe, the shell
+  // has already gated access before this page ever loads.
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    if (!me.authenticated) { showLoginGate(); return; }
+  } catch (e) { showLoginGate(); return; }
+
+  // A program is "connected" simply by existing in the registry — every
+  // program that's been added (the built-in EON default, or anything added
+  // through the Add Program form) has complete Jira config by construction.
+  // There's no separate "exists but not wired" state to track by hand anymore.
+  try {
+    const listRes = await fetch('/api/programs', { credentials: 'include' });
+    const listJson = await listRes.json();
+    const exists = (listJson.programs || []).some(p => p.id === programId);
+    if (!exists) { renderNotConnected(); return; }
+  } catch (e) { renderNotConnected(); return; }
+
+  await renderWithRealData();
+}
+
+function renderNotConnected() {
+  app.innerHTML = `
+    <p class="eyebrow">${programName}</p>
+    <h1>Executive Dashboard</h1>
+    <div class="not-connected">
+      <span class="badge">Not added yet</span>
+      <h2>${programName} hasn\u2019t been added to the governance shell</h2>
+      <p>This program doesn\u2019t exist in the registry yet. Use <strong>+ Add Program</strong> in the shell\u2019s side drawer to add it \u2014 once its Jira project, board, and tracking label(s) are entered, this page (and all three other dashboards) shows the same structure EON does, immediately, with no rebuild or redeploy.</p>
+    </div>
+  `;
+}
+
+function fmtDays(ms) { return ms == null ? null : (ms / 86400000).toFixed(1) + 'd'; }
+
+const JIRA_BASE = 'https://zeta-tm.atlassian.net';
+
+let drawerState = { items: [], title: '', sortCol: null, sortDir: 'asc' };
+
+function sortDrawerItems(items, col, dir) {
+  if (!col) return items;
+  const mul = dir === 'asc' ? 1 : -1;
+  return items.slice().sort((a, b) => (a[col] || '').toString().localeCompare((b[col] || '').toString()) * mul);
+}
+function drawerSortArrow(col) {
+  if (drawerState.sortCol !== col) return '<span style="color:var(--ink-3);opacity:0.4;">\u2195</span>';
+  return drawerState.sortDir === 'asc' ? '<span style="color:var(--blue);">\u25B2</span>' : '<span style="color:var(--blue);">\u25BC</span>';
+}
+
+function openDrawer(title, items) {
+  drawerState = { items, title, sortCol: null, sortDir: 'asc' };
+  document.getElementById('drawerOverlay').classList.add('open');
+  renderDrawerBody();
+}
+
+function renderDrawerBody() {
+  const { items, title, sortCol, sortDir } = drawerState;
+  document.getElementById('drawerTitle').textContent = `${title} (${items.length})`;
+  const body = document.getElementById('drawerBody');
+  if (!items.length) { body.innerHTML = '<div class="drawer-empty">No items in this set.</div>'; return; }
+  const sorted = sortDrawerItems(items, sortCol, sortDir);
+  const header = `
+    <div class="drawer-col-head">
+      <span class="c-key sortable" data-col="key">Jira ID ${drawerSortArrow('key')}</span>
+      <span class="c-sum sortable" data-col="sum">Summary ${drawerSortArrow('sum')}</span>
+      <span class="c-type sortable" data-col="type">Type ${drawerSortArrow('type')}</span>
+      <span class="c-status sortable" data-col="status">Status ${drawerSortArrow('status')}</span>
+    </div>`;
+  body.innerHTML = header + sorted.map(i => `
+    <div class="drawer-row">
+      <a class="key" href="${JIRA_BASE}/browse/${i.key}" target="_blank" rel="noopener">${i.key}</a>
+      <span class="sum">${i.sum || ''}</span>
+      <span class="type-badge">${i.type || 'Epic'}</span>
+      <span class="status-badge">${i.status || '\u2014'}</span>
+    </div>`).join('');
+  body.querySelectorAll('.drawer-col-head .sortable').forEach(el => {
+    el.addEventListener('click', () => {
+      const col = el.dataset.col;
+      if (drawerState.sortCol === col) drawerState.sortDir = drawerState.sortDir === 'asc' ? 'desc' : 'asc';
+      else { drawerState.sortCol = col; drawerState.sortDir = 'asc'; }
+      renderDrawerBody();
+    });
+  });
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer() { document.getElementById('drawerOverlay').classList.remove('open'); }
+
+let metricStore = {};
+let metricCounter = 0;
+
+// A metric tile that opens the in-app drawer with the EXACT items behind
+// it — not a re-query against Jira, so it can never show a mismatched
+// "0 results" for a number that's clearly non-zero on screen. Items are
+// wired via addEventListener after render, not inline onclick+JSON, since
+// ticket summaries routinely contain apostrophes that would break an
+// inline single-quoted attribute.
+function metricHTML(value, label, items, title, sublabel, mood) {
+  const clickable = items && items.length > 0;
+  const moodClass = mood === 'good' ? 'n-good' : mood === 'bad' ? 'n-bad' : mood === 'neutral' ? 'n-neutral' : '';
+  const inner = `<div class="n ${moodClass}">${value}</div><div class="l">${label}${sublabel ? `<br><span style="font-size:9.5px;">${sublabel}</span>` : ''}</div>`;
+  if (!clickable) return `<div class="metric">${inner}</div>`;
+  const id = 'metric-' + (metricCounter++);
+  metricStore[id] = { title: title || label, items };
+  return `<div class="metric" id="${id}" style="cursor:pointer;">${inner}</div>`;
+}
+function wireMetricClicks() {
+  Object.keys(metricStore).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const { title, items } = metricStore[id];
+    el.addEventListener('click', () => openDrawer(title, items));
+  });
+  metricStore = {};
+}
+
+// Pulls from the SAME live endpoints the other dashboards use — via the
+// same cachedFetch/sessionStorage layer, so visiting Executive after (or
+// before) the others doesn't trigger extra Jira calls.
+let CACHED_DELIVERY_DATA = null, CACHED_EPIC_DATA = null;
+let currentRoadmapLabelFilter = ''; // selected sub-label (e.g. a quarter tag) within the current stream; '' = whole stream
+let ROADMAP_ADHOC_CACHE = {};       // sub-label -> epics fetched on demand from /api/epic-delivery?label=
+let currentStream = null; // resolved dynamically once real stream data arrives — no program-specific default baked in
+
+async function renderWithRealData() {
+  app.innerHTML = `<p class="eyebrow">${programName}</p><h1>Executive Dashboard</h1><div style="color:var(--ink-3);font-size:13px;">Loading real data\u2026</div>`;
+  currentRoadmapLabelFilter = '';
+  ROADMAP_ADHOC_CACHE = {};
+
+  try {
+    // boot() here only ever runs on true first mount or an explicit Refresh
+    // click (the shell keeps this dashboard's iframe alive across tab
+    // switches, so no re-render happens in between) — so there's no
+    // duplicate-Jira-call cost to always fetching fresh, and a stale
+    // sessionStorage hit was silently defeating the Refresh button.
+    const [dRes, eRes] = await Promise.all([
+      fetch('/api/delivery-intelligence?program=' + encodeURIComponent(programId), { cache: 'no-store', credentials: 'include' }),
+      fetch('/api/epic-delivery?program=' + encodeURIComponent(programId), { cache: 'no-store', credentials: 'include' }),
+    ]);
+    if (dRes.ok) CACHED_DELIVERY_DATA = await dRes.json();
+    if (eRes.ok) CACHED_EPIC_DATA = await eRes.json();
+  } catch (e) { /* individual sections below handle missing data gracefully */ }
+
+  const streamKeys = (CACHED_EPIC_DATA && CACHED_EPIC_DATA.data) ? Object.keys(CACHED_EPIC_DATA.data) : [];
+  if (!currentStream || !streamKeys.includes(currentStream)) currentStream = streamKeys[0] || null;
+
+  renderStream(currentStream);
+}
+
+// Built dynamically from the API's own stream list (label + display name),
+// not a fixed two-entry object — works for one stream, two, or any number
+// a program is configured with.
+function streamDisplayName(streamKey) {
+  const streams = (CACHED_EPIC_DATA && CACHED_EPIC_DATA.meta && CACHED_EPIC_DATA.meta.streams) || [];
+  const match = streams.find(s => s.label === streamKey);
+  return (match && match.name) || streamKey;
+}
+
+// Categorizes an epic by its own real Jira status, not by inferring completion
+// from whether all its child tickets happen to be Done — that heuristic was
+// the original bug: an epic can have every ticket "Done" while the epic
+// itself is still mid-QA/UAT, and the old logic called that "Delivered"
+// incorrectly. Module-level so both the Delivery panel and the AI summary
+// digest use the exact same definition of each stage.
+function categorizeEpicStatus(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'done/closed' || s === 'done' || s === 'closed') return 'delivered';
+  if (s.includes('qa') || s.includes('demo pending') || s.includes('uat') || s.includes('testing')) return 'qa';
+  if (s.includes('dev in progress') || s.includes('peer review') || s === 'blocked') return 'development';
+  return 'planned'; // Groomed, To Do, New, Backlog, or any unrecognized status — never defaults to "delivered" or "qa"
+}
+
+function renderStream(streamKey) {
+  currentStream = streamKey;
+  const streams = (CACHED_EPIC_DATA && CACHED_EPIC_DATA.data) || {};
+  const allEpics = streams[streamKey] || [];
+  const streamLabel = streamDisplayName(streamKey);
+
+  // Sub-labels (e.g. a quarter tag like "Tachyon_Rewards_JAS_26") found on
+  // this stream's epics or their children, with how many epics carry each.
+  const subLabelCounts = {};
+  allEpics.forEach(e => {
+    new Set([...(e.labels || []), ...(e.childLabels || [])]).forEach(l => {
+      if (l && l !== streamKey) subLabelCounts[l] = (subLabelCounts[l] || 0) + 1;
+    });
+  });
+  const subLabels = Object.keys(subLabelCounts).sort();
+  if (currentRoadmapLabelFilter && !subLabels.includes(currentRoadmapLabelFilter)) currentRoadmapLabelFilter = '';
+
+  // A sub-label's epics are NOT necessarily a subset of the stream's epics,
+  // so picking one fetches that label's own complete set (cached per label)
+  // rather than filtering what is already loaded.
+  let epics, loadingSubLabel = false;
+  if (!currentRoadmapLabelFilter) {
+    epics = allEpics;
+  } else if (ROADMAP_ADHOC_CACHE[currentRoadmapLabelFilter]) {
+    epics = ROADMAP_ADHOC_CACHE[currentRoadmapLabelFilter];
+  } else {
+    epics = [];
+    loadingSubLabel = true;
+    fetchRoadmapAdHocLabel(currentRoadmapLabelFilter, streamKey);
+  }
+  const allStreamKeys = Object.keys(streams);
+
+  // ---- Delivery (epic-level, scoped to the selected stream only) ----
+  const plannedItems = epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'planned').map(e => ({ key: e.key, sum: e.sum, type: 'Epic', status: e.epicStatus }));
+  const devItems = epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'development').map(e => ({ key: e.key, sum: e.sum, type: 'Epic', status: e.epicStatus }));
+  const qaItems = epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'qa').map(e => ({ key: e.key, sum: e.sum, type: 'Epic', status: e.epicStatus }));
+  const deliveredItems = epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'delivered').map(e => ({ key: e.key, sum: e.sum, type: 'Epic', status: e.epicStatus }));
+  const blockedDeliveryItems = epics.filter(e => e.blocked > 0).map(e => ({ key: e.key, sum: e.sum, type: 'Epic', status: e.epicStatus }));
+  const planned = plannedItems.length, inDev = devItems.length, inQa = qaItems.length, delivered = deliveredItems.length, blockedCount = blockedDeliveryItems.length;
+
+  // ---- Bugs — its own section, scoped to this stream (from Program Delivery Intelligence), with real priority ----
+  const streamTickets = (CACHED_DELIVERY_DATA && CACHED_DELIVERY_DATA.streams && CACHED_DELIVERY_DATA.streams[streamKey]) ? CACHED_DELIVERY_DATA.streams[streamKey].tickets || [] : [];
+  const allBugItems = streamTickets.filter(t => t.t === 'Bug' && t.currentCategory !== 'Done').map(t => ({ key: t.k, sum: t.sum, type: 'Bug', status: t.currentStatus, priority: t.priority || 'Unset' }));
+  const totalBugsRaised = streamTickets.filter(t => t.t === 'Bug').length;
+  const totalBugsOpen = allBugItems.length;
+  // Epic's own QA-ETA field (not a rollup from children) — only counts as missing if Dev ETA is actually set.
+  const qaMissingCount = epics.filter(e => !e.devEtaMissing && e.qaEtaMissing).length;
+
+  // ---- Overall status of this stream's delivery — a plain-language summary, not a fabricated score ----
+  let ragColor = 'var(--green)', ragLabel = 'On track', ragDesc = `No blocked epics in ${streamLabel} right now.`;
+  if (blockedCount > epics.length / 3 && epics.length > 0) { ragColor = 'var(--red)'; ragLabel = 'At risk'; ragDesc = `${blockedCount} of ${epics.length} ${streamLabel} epics are currently blocked.`; }
+  else if (blockedCount > 0) { ragColor = 'var(--amber)'; ragLabel = 'Watch closely'; ragDesc = `${blockedCount} epic(s) blocked in ${streamLabel} \u2014 not yet critical, worth tracking.`; }
+
+  app.innerHTML = `
+    <p class="eyebrow">${programName}</p>
+    <h1>Executive Dashboard</h1>
+
+    ${allStreamKeys.length > 1 ? `<div class="stream-toggle" id="streamToggle">
+      ${allStreamKeys.map(k => `<button data-stream="${k}" class="${k===streamKey?'active':''}">${streamDisplayName(k)}</button>`).join('')}
+    </div>` : ''}
+
+    <div class="health-card" id="health-card-el" style="${blockedDeliveryItems.length ? 'cursor:pointer;' : ''}">
+      <div class="rag-dot" style="background:${ragColor};border-color:${ragColor};"></div>
+      <div>
+        <h2>${streamLabel} \u2014 ${ragLabel}</h2>
+        <p>${ragDesc} Rule-based from current epic data, not yet a calibrated composite score.${blockedDeliveryItems.length ? ' Click to view blocked epics.' : ''}</p>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1.7fr 1fr;">
+      <div class="panel" style="--panel-accent:var(--blue);">
+        <div class="panel-head"><h3>Delivery</h3></div>
+        <div class="metric-row" style="flex-wrap:wrap;row-gap:16px;">
+          ${metricHTML(planned, 'Planned', plannedItems, `${streamLabel} \u2014 planned epics`, null, 'neutral')}
+          ${metricHTML(inDev, 'In Development', devItems, `${streamLabel} \u2014 in development`, null, 'neutral')}
+          ${metricHTML(inQa, 'In QA', qaItems, `${streamLabel} \u2014 in QA`, null, 'neutral')}
+          ${metricHTML(delivered, 'Delivered', deliveredItems, `${streamLabel} \u2014 delivered epics`, null, 'good')}
+        </div>
+      </div>
+      <div class="panel" style="--panel-accent:var(--red);">
+        <div class="panel-head"><h3>Blocked</h3></div>
+        <div class="metric-row">
+          ${metricHTML(blockedCount, 'Blocked Epics', blockedDeliveryItems, `${streamLabel} \u2014 blocked epics`, null, blockedCount > 0 ? 'bad' : 'good')}
+          <div class="metric"><div class="n ${qaMissingCount > 0 ? 'n-bad' : 'n-good'}">${qaMissingCount}</div><div class="l">Missing QA ETA<br><span style="font-size:9.5px;">epics with Dev ETA set only</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="risks-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+        <h3 style="font-size:13.5px;font-weight:800;margin:0;color:var(--ink);text-transform:uppercase;letter-spacing:0.03em;">Bugs \u2014 <span style="color:var(--ink-2);font-weight:600;text-transform:none;letter-spacing:0;">${totalBugsOpen} open <span style="color:var(--ink-3);">(${totalBugsRaised} raised total, including closed)</span></span></h3>
+        <div class="bug-filter" id="bugFilter">
+          <button data-p="P1P2" class="active">P1 + P2</button>
+          <button data-p="P1">P1</button>
+          <button data-p="P2">P2</button>
+          <button data-p="P3">P3</button>
+          <button data-p="ALL">All Open</button>
+        </div>
+      </div>
+      <div id="bugListContainer"></div>
+    </div>
+
+    <div class="roadmap-panel">
+      <div class="roadmap-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <h3>${streamLabel} \u2014 Roadmap ${loadingSubLabel ? '' : `<span style="color:var(--ink-3);font-weight:600;font-size:12px;">\u2014 ${epics.length} epic${epics.length === 1 ? '' : 's'} \u00b7 ${epics.reduce((sum, e) => sum + e.tickets, 0)} tickets</span>`}</h3>
+        ${subLabels.length ? `<select id="roadmapLabelSelect" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--ink-2);">
+          <option value="">All labels</option>
+          ${subLabels.map(l => `<option value="${l}" ${l === currentRoadmapLabelFilter ? 'selected' : ''}>${l} (${subLabelCounts[l]})</option>`).join('')}
+        </select>` : ''}
+      </div>
+      <div id="roadmap-table-container">${loadingSubLabel ? `<div class="risk-placeholder">Loading ${currentRoadmapLabelFilter}\u2026</div>` : roadmapTableHTML(epics, 'roadmap-table')}</div>
+      <div class="ai-summary-box" id="ai-summary"><div class="ai-loading">${loadingSubLabel ? '' : 'Generating summary\u2026'}</div></div>
+    </div>
+  `;
+
+  document.querySelectorAll('#streamToggle button').forEach(btn => {
+    btn.addEventListener('click', () => { currentRoadmapLabelFilter = ''; renderStream(btn.dataset.stream); });
+  });
+  const roadmapSel = document.getElementById('roadmapLabelSelect');
+  if (roadmapSel) roadmapSel.addEventListener('change', () => { currentRoadmapLabelFilter = roadmapSel.value; renderStream(streamKey); });
+  if (!loadingSubLabel) wireRoadmapRows('roadmap-table', epics, 'roadmap-table-container');
+  wireMetricClicks();
+  renderBugList(allBugItems, 'P1P2');
+  document.querySelectorAll('#bugFilter button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#bugFilter button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderBugList(allBugItems, btn.dataset.p);
+    });
+  });
+  const healthCardEl = document.getElementById('health-card-el');
+  if (healthCardEl && blockedDeliveryItems.length) {
+    healthCardEl.addEventListener('click', () => openDrawer(`${streamLabel} \u2014 blocked epics`, blockedDeliveryItems));
+  }
+  if (!loadingSubLabel) generateRoadmapSummary(streamKey, epics, 'ai-summary');
+}
+
+async function fetchRoadmapAdHocLabel(label, streamKeyAtRequestTime) {
+  try {
+    const res = await fetch('/api/epic-delivery?program=' + encodeURIComponent(programId) + '&label=' + encodeURIComponent(label), { cache: 'no-store', credentials: 'include' });
+    const json = await res.json();
+    ROADMAP_ADHOC_CACHE[label] = (json.data && json.data[label]) || [];
+  } catch (e) {
+    ROADMAP_ADHOC_CACHE[label] = [];
+  }
+  if (currentStream === streamKeyAtRequestTime && currentRoadmapLabelFilter === label) renderStream(currentStream);
+}
+
+function renderBugList(allBugs, filterKey) {
+  const container = document.getElementById('bugListContainer');
+  if (!container) return;
+  let filtered;
+  if (filterKey === 'ALL') filtered = allBugs;
+  else if (filterKey === 'P1P2') filtered = allBugs.filter(b => b.priority === 'P1' || b.priority === 'P2');
+  else filtered = allBugs.filter(b => b.priority === filterKey);
+
+  if (!filtered.length) { container.innerHTML = '<div class="risk-placeholder">No open bugs match this filter.</div>'; return; }
+  container.innerHTML = `<div style="text-align:left;">${filtered.slice(0, 8).map(b => `<a href="${JIRA_BASE}/browse/${b.key}" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--ink-2);text-decoration:none;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.key} \u2014 ${b.sum}</span><span style="display:flex;gap:8px;flex-shrink:0;align-items:center;"><span class="priority-chip priority-${(b.priority||'unset').toLowerCase()}">${b.priority}</span><span style="color:var(--ink-3);font-weight:600;">${b.status}</span></span></a>`).join('')}</div>${filtered.length > 8 ? `<div style="margin-top:10px;"><a href="#" id="viewAllBugsLink" style="font-size:11.5px;color:var(--blue);text-decoration:none;font-weight:600;">View all ${filtered.length} \u2192</a></div>` : ''}`;
+  const viewAllLink = document.getElementById('viewAllBugsLink');
+  if (viewAllLink) viewAllLink.addEventListener('click', (e) => { e.preventDefault(); openDrawer('Bugs', filtered); });
+}
+
+let roadmapSort = { col: 'blocked', dir: 'desc' }; // default matches the original "blocked epics first" behavior
+
+function sortEpicsBy(epics, col, dir) {
+  const mul = dir === 'asc' ? 1 : -1;
+  return epics.slice().sort((a, b) => {
+    let av, bv;
+    if (col === 'epic') { av = a.key || ''; bv = b.key || ''; }
+    else if (col === 'tickets') { av = a.tickets || 0; bv = b.tickets || 0; }
+    else if (col === 'status') { av = a.epicStatus || ''; bv = b.epicStatus || ''; }
+    else { av = a.blocked || 0; bv = b.blocked || 0; }
+    if (typeof av === 'string') return av.localeCompare(bv) * mul;
+    return (av - bv) * mul;
+  });
+}
+function sortArrow(col) {
+  if (roadmapSort.col !== col) return '<span style="color:var(--ink-3);opacity:0.4;">\u2195</span>';
+  return roadmapSort.dir === 'asc' ? '<span style="color:var(--blue);">\u25B2</span>' : '<span style="color:var(--blue);">\u25BC</span>';
+}
+
+function roadmapTableHTML(epics, tableId) {
+  if (!epics.length) return '<div class="risk-placeholder">No epics found for this stream.</div>';
+  const sorted = sortEpicsBy(epics, roadmapSort.col, roadmapSort.dir);
+  return `<table class="roadmap-table" id="${tableId}"><thead><tr>
+      <th class="sortable" data-col="epic">Epic ${sortArrow('epic')}</th>
+      <th class="num sortable" data-col="tickets">Tickets ${sortArrow('tickets')}</th>
+      <th class="sortable" data-col="status">Status ${sortArrow('status')}</th>
+      <th class="num sortable" data-col="blocked">Blocked ${sortArrow('blocked')}</th>
+    </tr></thead><tbody>
+    ${sorted.map((e, i) => {
+      return `<tr class="clickable" data-idx="${i}">
+        <td><a class="epic-tag" href="${JIRA_BASE}/browse/${e.key}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${e.key}</a><div style="font-size:11px;color:var(--ink-2);margin-top:3px;max-width:280px;">${e.sum}</div></td>
+        <td class="num">${e.tickets}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:var(--ink);">${e.epicStatus || '\u2014'}</span></td>
+        <td class="num">${e.blocked > 0 ? `<span style="color:var(--red);font-weight:700;">${e.blocked}</span>` : '0'}</td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+function refreshRoadmapTable(epics, tableId, containerId) {
+  document.getElementById(containerId).innerHTML = roadmapTableHTML(epics, tableId);
+  wireRoadmapRows(tableId, epics, containerId);
+}
+
+function wireRoadmapRows(tableId, epics, containerId) {
+  const sorted = sortEpicsBy(epics, roadmapSort.col, roadmapSort.dir);
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  table.querySelectorAll('tr[data-idx]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const e = sorted[parseInt(tr.dataset.idx, 10)];
+      const items = (e.children || []).map(c => ({ key: c.k, sum: c.a && c.a !== 'Unassigned' ? `${c.sum} \u00b7 ${c.a}` : c.sum, type: 'Ticket', status: c.status }));
+      openDrawer(`${e.key} \u2014 ${e.sum}`, items);
+    });
+  });
+  table.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (roadmapSort.col === col) roadmapSort.dir = roadmapSort.dir === 'asc' ? 'desc' : 'asc';
+      else { roadmapSort = { col, dir: 'asc' }; }
+      refreshRoadmapTable(epics, tableId, containerId);
+    });
+  });
+}
+
+// ---- AI roadmap summaries, Claude-powered, auto-generated on every load/refresh ----
+// Hidden entirely if ANTHROPIC_API_KEY isn't configured — same gating pattern
+// as Sprint Health's executive summary, so this costs nothing until it's set up.
+async function generateRoadmapSummary(streamLabel, epics, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  try {
+    const cfgRes = await fetch('/api/config', { credentials: 'include' });
+    if (!cfgRes.ok) { container.innerHTML = ''; return; }
+    const cfg = await cfgRes.json();
+    if (!cfg.aiSummaryEnabled) { container.innerHTML = ''; return; }
+  } catch (e) { container.innerHTML = ''; return; }
+
+  const digest = {
+    stream: streamLabel,
+    totalEpics: epics.length,
+    planned: epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'planned').map(e => ({ key: e.key, sum: e.sum, status: e.epicStatus })),
+    inDevelopment: epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'development').map(e => ({ key: e.key, sum: e.sum, status: e.epicStatus })),
+    inQa: epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'qa').map(e => ({ key: e.key, sum: e.sum, status: e.epicStatus })),
+    delivered: epics.filter(e => categorizeEpicStatus(e.epicStatus) === 'delivered').map(e => e.key),
+    blocked: epics.filter(e => e.blocked > 0).map(e => ({ key: e.key, sum: e.sum, blockedCount: e.blocked })),
+  };
+
+  try {
+    const res = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(digest),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'unknown error');
+    container.innerHTML = `
+      <span class="tag">AI Summary \u2014 ${streamLabel}</span>
+      <p>${data.summary}</p>
+      <ul>${(data.risks || []).map(r => `<li>${r}</li>`).join('')}</ul>
+      <ul>${(data.actions || []).map(a => `<li>${a}</li>`).join('')}</ul>
+      <p style="font-size:10px;color:var(--ink-3);font-family:var(--mono);margin:0;">Generated ${new Date(data.generatedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</p>
+    `;
+  } catch (e) {
+    container.innerHTML = `<p style="font-size:11.5px;color:var(--red);">Couldn't generate summary: ${e.message}</p>`;
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

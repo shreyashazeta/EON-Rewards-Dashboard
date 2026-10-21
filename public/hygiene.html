@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EON Jira hygiene tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#f6f6fb; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --text:#1c1a2e; --text-2:#5c5875; --text-3:#948fac;
+    --red:#c0392b; --red-bg:#fceceb; --amber:#b8790f; --amber-bg:#fbf1de;
+    --green:#1c7a4d; --green-bg:#e8f5ee; --blue:#1a56a8; --blue-bg:#e9f1fb;
+    --purple:#5b3fa0; --purple-bg:#f0ecfa;
+    --mono: 'SF Mono', 'Consolas', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px 64px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+  .eyebrow{font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);font-weight:600;margin:0 0 4px;}
+  h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-0.01em;}
+  .sub{font-size:13px;color:var(--text-2);margin:6px 0 0;}
+  .stamp{font-size:11px;color:var(--text-3);margin-top:4px;font-family:var(--mono);}
+
+  .label-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .label-tab{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-2);}
+  .label-tab.active{background:var(--text);color:#fff;border-color:var(--text);}
+
+  .controls-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .toggle{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;background:#fff;}
+  .toggle button{border:none;background:transparent;padding:7px 14px;font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer;}
+  .toggle button.active{background:var(--text);color:#fff;}
+  select, .my-input{
+    border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:7px 12px;
+    font-size:13px;color:var(--text);font-family:inherit;
+  }
+  .refresh-btn{
+    display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+    background:#fff;color:var(--text);font-size:13px;font-weight:500;padding:7px 14px;border-radius:8px;cursor:pointer;
+  }
+  .refresh-btn:hover{background:#f0f1f3;}
+  .refresh-btn svg{width:14px;height:14px;}
+  .my-toggle{display:flex;align-items:center;gap:6px;}
+  .my-toggle button{
+    border:1px solid var(--border-strong);background:#fff;color:var(--text-2);font-size:13px;font-weight:500;
+    padding:7px 14px;border-radius:8px;cursor:pointer;
+  }
+  .my-toggle button.active{background:var(--blue-bg);color:var(--blue);border-color:var(--blue);}
+
+  .delta-banner{
+    display:flex;align-items:center;gap:10px;background:var(--blue-bg);border-radius:10px;
+    padding:10px 16px;margin-bottom:18px;font-size:13px;color:var(--blue);
+  }
+  .delta-banner.empty{background:var(--bg);color:var(--text-3);border:1px dashed var(--border-strong);}
+  .delta-banner .dchip{font-weight:600;}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;cursor:pointer;transition:border-color .1s;}
+  .card:hover{border-color:var(--border-strong);}
+  .card .label{font-size:12px;color:var(--text-2);margin:0 0 6px;font-weight:500;}
+  .card .value{font-size:26px;font-weight:600;margin:0;letter-spacing:-0.01em;}
+  .card .pct{font-size:12px;font-weight:500;margin-left:6px;}
+  .card .hint{font-size:11px;color:var(--text-3);margin:6px 0 0;}
+  .card.warn .value, .card.warn .pct{color:var(--amber);}
+  .card.bad .value, .card.bad .pct{color:var(--red);}
+  .card.ok .value, .card.ok .pct{color:var(--green);}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 22px;margin-bottom:16px;}
+  .ticket-list{display:flex;flex-direction:column;gap:0;max-height:320px;overflow-y:auto;}
+  .panel h2{font-size:14px;font-weight:600;margin:0 0 2px;}
+  .panel .desc{font-size:12px;color:var(--text-2);margin:0 0 16px;}
+  .chart-wrap{position:relative;height:220px;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:12px;color:var(--text-2);}
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .dot{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  .stack-row{display:flex;height:26px;border-radius:6px;overflow:hidden;}
+  .stack-seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;cursor:pointer;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);font-weight:600;padding:0 10px 8px;border-bottom:1px solid var(--border);}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text);}
+  tr:last-child td{border-bottom:none;}
+  td.num, th.num{text-align:right;font-family:var(--mono);}
+  .name-cell{font-weight:500;}
+  .bar-cell{display:flex;align-items:center;gap:8px;}
+  .bar-track{flex:1;height:6px;background:#eef0f3;border-radius:3px;overflow:hidden;min-width:60px;}
+  .bar-fill{height:100%;background:var(--red);border-radius:3px;}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;cursor:pointer;border:none;}
+  .pill.bad{background:var(--red-bg);color:var(--red);}
+  .pill.warn{background:var(--amber-bg);color:var(--amber);}
+  .pill.ok{background:var(--green-bg);color:var(--green);}
+
+  .a-row{display:grid;grid-template-columns:140px 50px 1fr 60px;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--border);cursor:pointer;}
+  .a-row:last-child{border-bottom:none;}
+  .a-row:hover{background:var(--bg);}
+  .a-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .a-total{font-size:12px;color:var(--text-3);font-family:var(--mono);text-align:right;}
+  .a-bar-track{height:8px;background:#eef0f3;border-radius:4px;overflow:hidden;}
+  .a-bar-fill{height:100%;border-radius:4px;}
+  .a-pct{font-size:12px;font-weight:600;text-align:right;}
+  .field-tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px;background:var(--red-bg);color:var(--red);}
+  .ticket-fields{font-size:11px;color:var(--text-3);margin-top:2px;}
+
+  .flags{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+  .flag{border:1px solid var(--border);border-radius:8px;padding:12px 14px;cursor:pointer;}
+  .flag:hover{border-color:var(--border-strong);}
+  .flag .fname{font-size:13px;font-weight:500;margin:0 0 4px;}
+  .flag .fval{font-size:18px;font-weight:600;margin:0;}
+  .flag .fnote{font-size:11px;color:var(--text-3);margin:4px 0 0;}
+
+  .note{font-size:12px;color:var(--text-3);line-height:1.6;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+  .note code{font-family:var(--mono);background:#eef0f3;padding:1px 5px;border-radius:4px;font-size:11px;}
+
+  .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(20,24,31,0.4);z-index:50;align-items:flex-start;justify-content:center;padding:60px 20px;}
+  .loading-overlay{display:none;position:fixed;inset:0;background:rgba(245,246,248,0.85);z-index:60;align-items:center;justify-content:center;flex-direction:column;}
+  .loading-overlay.show{display:flex;}
+  .loading-spin{width:34px;height:34px;border:3px solid var(--border-strong);border-top-color:var(--blue);border-radius:50%;animation:loadspin .8s linear infinite;margin-bottom:14px;}
+  @keyframes loadspin{to{transform:rotate(360deg);}}
+  .loading-text{font-size:13px;color:var(--text-2);font-weight:500;}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(26,86,168,0.25);border-top-color:var(--blue);border-radius:50%;animation:loadspin .7s linear infinite;}
+  .drawer-overlay.open{display:flex;}
+  .drawer{background:var(--card);border-radius:12px;max-width:520px;width:100%;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,0.15);}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+  .drawer-head h3{font-size:14px;font-weight:600;margin:0;}
+  .drawer-head button{border:none;background:none;font-size:18px;color:var(--text-3);cursor:pointer;line-height:1;padding:4px;}
+  .drawer-body{overflow-y:auto;padding:8px 12px;}
+  .ticket-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 8px;border-radius:6px;text-decoration:none;color:var(--text);}
+  .ticket-row:hover{background:var(--bg);}
+  .ticket-key{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--blue);flex-shrink:0;}
+  .type-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;flex-shrink:0;vertical-align:middle;margin-right:5px;}
+  .ticket-meta{font-size:11px;color:var(--text-3);flex:1;text-align:right;}
+  .ticket-arrow{font-size:14px;color:var(--text-3);flex-shrink:0;}
+  .drawer-empty{padding:24px;text-align:center;font-size:13px;color:var(--text-3);}
+  .live-pill{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;letter-spacing:0.03em;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;text-transform:uppercase;}
+  .live-pill.live{background:var(--green-bg);color:var(--green);}
+  .live-pill.live::before{content:'●';font-size:8px;}
+  .live-pill.offline{background:var(--amber-bg);color:var(--amber);}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spin"></div>
+  <div class="loading-text" id="loadingText">Loading hygiene data from Jira…</div>
+</div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">Jira hygiene · EON <span id="liveStatus" class="live-pill offline">Checking...</span></p>
+      <h1 id="pageTitle">EON JIRA HYGIENE TRACKER</h1>
+      <p class="sub">Epics excluded · click any number, bar, pill, or flag to jump to tickets</p>
+    </div>
+    <div style="text-align:right;">
+      <button class="refresh-btn" id="refreshBtn" onclick="requestRefresh()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
+        Refresh
+      </button>
+      <p class="stamp" id="dataStamp"></p>
+    </div>
+  </div>
+
+  <div class="toggle" id="issueViewToggle" style="margin-bottom:10px;">
+    <button data-view="story" class="active">User Stories</button>
+    <button data-view="epic">Epics</button>
+  </div>
+
+  <div class="label-row" id="labelRow"></div>
+
+  <div class="controls-row">
+    <div class="toggle" id="scopeToggle">
+      <button data-scope="all">All issues</button>
+      <button data-scope="open" class="active">Open only</button>
+    </div>
+    <select id="sprintSelect"></select>
+    <div class="my-toggle">
+      <select id="myNameSelect" style="min-width:190px;"><option value="">Everyone</option></select>
+    </div>
+  </div>
+
+  <div class="panel" id="coveragePanel" style="display:none;">
+    <h2>Untracked in <span id="coverageSprintName"></span></h2>
+    <p class="desc" id="coverageDesc"></p>
+    <div class="ticket-list" id="coverageList"></div>
+  </div>
+
+  <div id="deltaBanner"></div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="panel">
+    <h2>New this week vs still open</h2>
+    <p class="desc">Tickets created in the last 7 days vs older open tickets still carrying gaps — split tells you if hygiene is a backlog problem or a fresh-intake problem</p>
+    <div class="stack-row" id="ageStack"></div>
+    <div class="legend" style="margin-top:10px;">
+      <span><span class="dot" style="background:#1a56a8;"></span>New this week</span>
+      <span><span class="dot" style="background:#ff8f7d;"></span>Still open, 7+ days old</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Missing fields by issue type</h2>
+    <p class="desc">Click any bar segment to see exactly which tickets it represents</p>
+    <div class="legend">
+      <span id="acLegendDot"><span class="dot" style="background:#ff8f7d;"></span>Missing acceptance criteria</span>
+      <span><span class="dot" style="background:#ffb454;"></span>Missing Dev ETA</span>
+      <span id="qaLegendDot"><span class="dot" style="background:#f2b544;"></span>Missing QA ETA</span>
+      <span><span class="dot" style="background:#e8d34a;"></span>Missing story points</span>
+      <span><span class="dot" style="background:#a8a4c8;"></span>Unassigned</span>
+    </div>
+    <div class="chart-wrap"><canvas id="typeChart" role="img" aria-label="Bar chart of missing fields by issue type, clickable for ticket detail"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>By assignee</h2>
+    <p class="desc">Who's carrying the most hygiene gaps — sorted worst first, click a row for the full breakdown</p>
+    <div style="display:grid;grid-template-columns:140px 50px 1fr 60px;gap:12px;padding:0 4px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);font-weight:600;border-bottom:1px solid var(--border);">
+      <span>Assignee</span><span style="text-align:right;">Tickets</span><span>Share of AC / Dev ETA / SP missing</span><span style="text-align:right;">Gap %</span>
+    </div>
+    <div id="assigneeList"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Other fields worth flagging</h2>
+    <p class="desc">Beyond the four core fields — click to see the affected tickets</p>
+    <div class="flags" id="flags"></div>
+  </div>
+
+  <div class="note">
+    <strong style="color:var(--text-2);">Notes</strong> — Epics are excluded site-wide in this version (they rarely carry AC/Dev ETA/story points the same way delivery tickets do). "Show only mine" remembers your name locally on this device. The delta banner compares today's snapshot to the last time <em>anyone</em> opened this dashboard on this label/scope — it's a real comparison, not a fixed weekly cadence, since the artifact only updates when someone visits. Sprint data reflects each ticket's most recent sprint, including closed ones — pick "No sprint" to see backlog items never sprint-planned. Clicking <strong>Refresh</strong> asks Claude to re-pull current data from Jira and rebuild this file.
+  </div>
+
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="if(event.target===this) closeDrawer()">
+  <div class="drawer">
+    <div class="drawer-head">
+      <h3 id="drawerTitle">Tickets</h3>
+      <button onclick="closeDrawer()" aria-label="Close">&times;</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+</div>
+
+<script src="/js/cache-client.js"></script>
+<script>
+const JIRA_BASE = "https://zeta-tm.atlassian.net/browse/";
+const PROXY_BASE = ""; // same-origin deployment. Set to your proxy's full URL if hosted separately.
+const PROGRAM_ID = new URLSearchParams(window.location.search).get('program') || 'eon';
+let DATA_PULLED_AT = "2026-08-05T15:00:00+05:30";
+let liveMode = false;
+function renderStamp(){
+  document.getElementById('dataStamp').innerHTML = `Data as of ${new Date(DATA_PULLED_AT).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})} &middot; ${liveMode ? 'live from Jira' : 'last known snapshot'}`;
+}
+let DATA = {};
+let EPIC_DATA = {};
+let issueView = 'story';
+let currentLabel = Object.keys(DATA)[0];
+let scope = 'open';
+let sprintFilter = 'ALL';
+let SPRINT_COVERAGE = {};
+let myTicketsOnly = false;
+let myName = '';
+let chart = null;
+
+function pct(n, d){ return d ? Math.round((n/d)*100) : 0; }
+
+function typeIcon(type){
+  const T = {
+    'Story':      { bg:'#65ba43', path:'M4 2.5h6a1 1 0 011 1v8.2l-4-2.3-4 2.3V3.5a1 1 0 011-1z' },
+    'Bug':        { bg:'#e2483d', path:'M7 4.2a2.6 2.6 0 012.6 2.6v1.4A2.6 2.6 0 017 10.8 2.6 2.6 0 014.4 8.2V6.8A2.6 2.6 0 017 4.2z', extra:'<path d="M3 6.5l1.6 1M11 6.5l-1.6 1M3 10l1.8-.9M11 10l-1.8-.9M7 3.5V2M5.5 3l-.8-1M8.5 3l.8-1" stroke="#fff" stroke-width="0.8" fill="none" stroke-linecap="round"/>' },
+    'Task':       { bg:'#4bade8', path:'M3.5 3.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z', extra:'<path d="M5 7l1.4 1.4L9.3 5.5" stroke="#fff" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+    'Tech Story': { bg:'#6554c0', path:'', extra:'<path d="M4.8 4.2L2.5 7l2.3 2.8M9.2 4.2L11.5 7l-2.3 2.8M7.6 3l-1.2 8" stroke="#fff" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+    'Epic':       { bg:'#8b3ee8', path:'M8.3 1.5L3.2 8h2.9l-1 4.5L10 6H7.1z' },
+    'Sub-task':   { bg:'#4bade8', path:'M4 4h6a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z', extra:'<path d="M5.3 7l1 1 1.6-1.8" stroke="#fff" stroke-width="0.9" fill="none" stroke-linecap="round"/>' },
+  };
+  const conf = T[type];
+  const bg = conf ? conf.bg : '#8993a4';
+  const inner = conf ? `<path d="${conf.path}" fill="#fff"/>${conf.extra||''}` : `<text x="7" y="10" font-size="8" fill="#fff" text-anchor="middle" font-family="sans-serif">${(type||'?').charAt(0)}</text>`;
+  return `<span class="type-icon" title="${type||'Unknown type'}" style="background:${bg};"><svg viewBox="0 0 14 14" width="13" height="13" style="display:block;">${inner}</svg></span>`;
+}
+
+function populateMyNameSelect(){
+  const sel = document.getElementById('myNameSelect');
+  const source = issueView === 'epic' ? EPIC_DATA : DATA;
+  const all = Object.values(source).flat();
+  const names = [...new Set(all.map(i => i.a).filter(n => n && n !== 'Unassigned'))].sort();
+  const prevValue = sel.value || myName;
+  sel.innerHTML = '<option value="">Everyone</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+  if(names.includes(prevValue)) sel.value = prevValue;
+}
+
+function baseIssues(){
+  const source = issueView === 'epic' ? EPIC_DATA : DATA;
+  let list = source[currentLabel] || [];
+  if(scope === 'open') list = list.filter(i => i.open);
+  if(issueView === 'story'){
+    if(sprintFilter === 'NONE') list = list.filter(i => !i.sprint);
+    else if(sprintFilter !== 'ALL') list = list.filter(i => i.sprint === sprintFilter);
+  }
+  if(myTicketsOnly && myName.trim()) list = list.filter(i => i.a === myName.trim());
+  return list;
+}
+
+function openDrawer(title, issues){
+  document.getElementById('drawerTitle').textContent = `${title} (${issues.length})`;
+  const body = document.getElementById('drawerBody');
+  if(!issues.length){
+    body.innerHTML = '<div class="drawer-empty">No tickets in this set.</div>';
+  } else {
+    body.innerHTML = issues.map(i => `
+      <a class="ticket-row" href="${JIRA_BASE}${i.k}" target="_blank" rel="noopener">
+        ${typeIcon(i.t)}<span class="ticket-key">${i.k}</span>
+        <span class="ticket-meta">${i.t} &middot; ${i.a}</span>
+        <span class="ticket-arrow">&rarr;</span>
+      </a>
+    `).join('');
+  }
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer(){ document.getElementById('drawerOverlay').classList.remove('open'); }
+
+function renderLabelTabs(){
+  const row = document.getElementById('labelRow');
+  row.innerHTML = Object.keys(DATA).map(label => `
+    <button class="label-tab ${label===currentLabel?'active':''}" data-label="${label}">${label}</button>
+  `).join('');
+  row.querySelectorAll('.label-tab').forEach(btn => {
+    btn.addEventListener('click', () => { currentLabel = btn.dataset.label; sprintFilter='ALL'; render(); });
+  });
+}
+
+function renderSprintSelect(){
+  const sel = document.getElementById('sprintSelect');
+  if(issueView === 'epic'){
+    sel.style.display = 'none';
+    return;
+  }
+  sel.style.display = '';
+  const all = DATA[currentLabel];
+  const sprints = [...new Set(all.map(i => i.sprint).filter(Boolean))];
+  // Sort by the trailing sprint number (e.g. "...Sprint 4" -> 4) so recency is correct
+  // regardless of naming, then keep only the 3 most recent to avoid a cluttered list.
+  const numOf = s => { const m = s.match(/(\d+)\s*$/); return m ? parseInt(m[1], 10) : -1; };
+  const recentSprints = sprints.sort((a,b) => numOf(b) - numOf(a)).slice(0, 3);
+  sel.innerHTML = `<option value="ALL">All sprints</option><option value="NONE">No sprint</option>` +
+    recentSprints.map(s => `<option value="${s}">${s}</option>`).join('');
+  // If a previously-selected sprint fell outside the recent-3 window, fall back to ALL
+  // rather than silently showing a blank/invalid selection.
+  if(sprintFilter !== 'ALL' && sprintFilter !== 'NONE' && !recentSprints.includes(sprintFilter)){
+    sprintFilter = 'ALL';
+  }
+  sel.value = sprintFilter;
+}
+
+function renderCoveragePanel(){
+  const panel = document.getElementById('coveragePanel');
+  if(issueView === 'epic' || sprintFilter === 'ALL' || sprintFilter === 'NONE' || !SPRINT_COVERAGE[sprintFilter]){
+    panel.style.display = 'none';
+    return;
+  }
+  const cov = SPRINT_COVERAGE[sprintFilter];
+  panel.style.display = 'block';
+  document.getElementById('coverageSprintName').textContent = sprintFilter;
+  document.getElementById('coverageDesc').textContent =
+    `${cov.untrackedCount} of ${cov.totalInSprint} tickets in this sprint have neither tracking label — these are invisible to the LE/Add-On tabs above until labeled.`;
+  const list = document.getElementById('coverageList');
+  if(!cov.untracked.length){
+    list.innerHTML = '<div class="drawer-empty">Every ticket in this sprint has a tracking label. Nothing missing.</div>';
+    return;
+  }
+  list.innerHTML = cov.untracked.map(t => `
+    <a class="ticket-row" href="${JIRA_BASE}${t.k}" target="_blank" rel="noopener">
+      ${typeIcon(t.t)}<span class="ticket-key">${t.k}</span>
+      <span class="ticket-meta">${t.status} &middot; ${t.a}${t.labels.length ? ' &middot; has: ' + t.labels.join(', ') : ' &middot; no labels at all'}</span>
+      <span class="ticket-arrow">&rarr;</span>
+    </a>
+  `).join('');
+}
+
+async function renderDelta(issues){
+  const key = `snapshot:${currentLabel}:${scope}`;
+  const banner = document.getElementById('deltaBanner');
+  const current = {
+    total: issues.length,
+    gaps: issues.filter(i => (issueView==='story' && i.ac) || i.eta || (issueView==='epic' && !i.eta && i.qa) || i.sp_missing || i.un).length,
+    date: new Date().toISOString().slice(0,10)
+  };
+  let prev = null;
+  try{
+    const res = await window.storage.get(key, true);
+    if(res && res.value) prev = JSON.parse(res.value);
+  }catch(e){}
+
+  if(!prev || prev.date === current.date){
+    banner.innerHTML = `<div class="delta-banner empty">First snapshot recorded today (${current.date}) for this view — delta will show next time someone opens this label and scope.</div>`;
+  } else {
+    const gapDelta = current.gaps - prev.gaps;
+    const totalDelta = current.total - prev.total;
+    const gapText = gapDelta === 0 ? 'no change in gap count' : gapDelta > 0 ? `${gapDelta} more tickets with gaps` : `${Math.abs(gapDelta)} fewer tickets with gaps`;
+    banner.innerHTML = `<div class="delta-banner"><span>Since last visit on ${prev.date}:</span> <span class="dchip">${gapText}</span><span>&middot;</span><span>${current.total} tickets now vs ${prev.total} then</span></div>`;
+  }
+  try{ await window.storage.set(key, JSON.stringify(current), true); }catch(e){}
+}
+
+function renderCards(issues){
+  const total = issues.length;
+  const acIssues = issues.filter(i => i.ac);
+  const etaIssues = issues.filter(i => i.eta);
+  const qaIssues = issues.filter(i => !i.eta && i.qa); // only flag QA ETA missing once Dev ETA exists
+  const unIssues = issues.filter(i => i.un);
+  const newIssues = issues.filter(i => i.new);
+  const cards = [
+    {label:'Total issues', value:total, cls:'', issues:issues},
+    ...(issueView === 'epic' ? [] : [{label:'Missing acceptance criteria', value:acIssues.length, den:total, cls: pct(acIssues.length,total)>60?'bad':'warn', issues:acIssues}]),
+    {label:'Missing Dev ETA', value:etaIssues.length, den:total, cls: pct(etaIssues.length,total)>60?'bad':'warn', issues:etaIssues},
+    ...(issueView === 'epic' ? [{label:'Missing QA ETA', value:qaIssues.length, den:total, cls: pct(qaIssues.length,total)>60?'bad':'warn', issues:qaIssues}] : []),
+    {label:'Unassigned', value:unIssues.length, den:total, cls: pct(unIssues.length,total)>30?'bad':'warn', issues:unIssues},
+    {label:'New this week', value:newIssues.length, den:total, cls:'ok', issues:newIssues}
+  ];
+  const el = document.getElementById('cards');
+  el.innerHTML = cards.map((c,i) => `
+    <div class="card ${c.cls}" data-idx="${i}">
+      <p class="label">${c.label}</p>
+      <p class="value">${c.value}${c.den ? `<span class="pct">${pct(c.value,c.den)}%</span>` : ''}</p>
+      <p class="hint">Click to view tickets</p>
+    </div>
+  `).join('');
+  el.querySelectorAll('.card').forEach((div,i) => {
+    div.addEventListener('click', () => openDrawer(cards[i].label, cards[i].issues));
+  });
+}
+
+function renderAgeStack(issues){
+  const total = issues.length;
+  const newI = issues.filter(i => i.new);
+  const oldOpenI = issues.filter(i => !i.new && i.open);
+  const pNew = pct(newI.length, total);
+  const pOld = pct(oldOpenI.length, total);
+  const el = document.getElementById('ageStack');
+  el.innerHTML = `
+    ${newI.length>0?`<div class="stack-seg" style="width:${pNew}%;background:#1a56a8;" data-set="new">${pNew>=8?pNew+'%':''}</div>`:''}
+    ${oldOpenI.length>0?`<div class="stack-seg" style="width:${pOld}%;background:#ff8f7d;" data-set="old">${pOld>=8?pOld+'%':''}</div>`:''}
+    ${(newI.length+oldOpenI.length)<total?`<div class="stack-seg" style="width:${100-pNew-pOld}%;background:#a8a4c8;"></div>`:''}
+  `;
+  el.querySelectorAll('[data-set]').forEach(seg => {
+    seg.addEventListener('click', () => {
+      if(seg.dataset.set==='new') openDrawer('New this week', newI);
+      else openDrawer('Still open, 7+ days old', oldOpenI);
+    });
+  });
+}
+
+function renderChart(issues){
+  document.getElementById('acLegendDot').style.display = issueView === 'epic' ? 'none' : '';
+  document.getElementById('qaLegendDot').style.display = issueView === 'epic' ? '' : 'none';
+  const types = [...new Set(issues.map(i => i.t))];
+  const byType = {};
+  types.forEach(t => {
+    const sub = issues.filter(i => i.t === t);
+    byType[t] = { total: sub.length, ac: sub.filter(i=>i.ac), eta: sub.filter(i=>i.eta), qa: sub.filter(i=>!i.eta && i.qa), sp: sub.filter(i=>i.sp_missing), un: sub.filter(i=>i.un) };
+  });
+  const labels = types.map(t => `${t} (${byType[t].total})`);
+  const datasetsDef = [
+    ...(issueView === 'epic' ? [] : [{label:'Missing AC', key:'ac', color:'#ff8f7d'}]),
+    {label:'Missing Dev ETA', key:'eta', color:'#ffb454'},
+    ...(issueView === 'epic' ? [{label:'Missing QA ETA', key:'qa', color:'#f2b544'}] : []),
+    {label:'Missing story points', key:'sp', color:'#e8d34a'},
+    {label:'Unassigned', key:'un', color:'#a8a4c8'}
+  ];
+  const datasets = datasetsDef.map(dd => ({ label: dd.label, data: types.map(t => byType[t][dd.key].length), backgroundColor: dd.color, borderRadius:3, maxBarThickness:20 }));
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById('typeChart'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{ticks:{font:{size:11}}} },
+      onClick: (evt, elements) => {
+        if(!elements.length) return;
+        const el = elements[0];
+        const type = types[el.index];
+        const dd = datasetsDef[el.datasetIndex];
+        openDrawer(`${dd.label} — ${type}`, byType[type][dd.key]);
+      },
+      onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }
+    }
+  });
+}
+
+function renderAssignees(issues){
+  const names = [...new Set(issues.map(i => i.a))];
+  const byAssignee = {};
+  names.forEach(n => {
+    const sub = issues.filter(i => i.a === n);
+    const possible = sub.length * 3; // AC, Dev ETA, SP — the fields a dev assignee owns
+    const missing = sub.reduce((sum,i) => sum + (i.ac?1:0) + (i.eta?1:0) + (i.sp_missing?1:0), 0);
+    byAssignee[n] = { total: sub.length, tickets: sub, pct: pct(missing, possible) };
+  });
+  const sorted = names.sort((a,b) => byAssignee[b].pct - byAssignee[a].pct);
+  const el = document.getElementById('assigneeList');
+  el.innerHTML = sorted.map(name => {
+    const v = byAssignee[name];
+    const color = v.pct >= 80 ? '#ff8f7d' : v.pct >= 40 ? '#e8d34a' : '#4ade9b';
+    return `
+      <div class="a-row" data-name="${name}">
+        <span class="a-name">${name}</span>
+        <span class="a-total">${v.total}</span>
+        <div class="a-bar-track"><div class="a-bar-fill" style="width:${v.pct}%;background:${color};"></div></div>
+        <span class="a-pct" style="color:${color};">${v.pct}%</span>
+      </div>
+    `;
+  }).join('');
+  el.querySelectorAll('.a-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const name = row.dataset.name;
+      const tickets = byAssignee[name].tickets;
+      openBreakdownDrawer(name, tickets);
+    });
+  });
+}
+
+function openBreakdownDrawer(title, issues){
+  document.getElementById('drawerTitle').textContent = `${title} — hygiene breakdown (${issues.length})`;
+  const body = document.getElementById('drawerBody');
+  if(!issues.length){
+    body.innerHTML = '<div class="drawer-empty">No tickets in this set.</div>';
+  } else {
+    body.innerHTML = issues.map(i => {
+      const gaps = [];
+      if(i.ac) gaps.push('AC');
+      if(i.eta) gaps.push('Dev ETA');
+      if(i.sp_missing) gaps.push('Story points');
+      return `
+        <a class="ticket-row" href="${JIRA_BASE}${i.k}" target="_blank" rel="noopener" style="align-items:flex-start;">
+          ${typeIcon(i.t)}<span class="ticket-key">${i.k}</span>
+          <span style="flex:1;text-align:right;">
+            ${gaps.length ? gaps.map(g => `<span class="field-tag">${g}</span>`).join('') : '<span class="field-tag" style="background:var(--green-bg);color:var(--green);">Clean</span>'}
+            <div class="ticket-fields">${i.t}</div>
+          </span>
+          <span class="ticket-arrow">&rarr;</span>
+        </a>
+      `;
+    }).join('');
+  }
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function renderFlags(issues){
+  const total = issues.length;
+  const defs = [
+    {name:'Missing due date', key:'due', note:'No target date set'},
+    {name:'Missing fix version', key:'fix', note:'No release tagged'},
+    {name:'Missing components', key:'comp', note:'No component/module tagged'}
+  ];
+  const withIssues = defs.map(d => ({...d, issues: issues.filter(i => i[d.key])}));
+  document.getElementById('flags').innerHTML = withIssues.map(f => `
+    <div class="flag" data-key="${f.key}">
+      <p class="fname">${f.name}</p>
+      <p class="fval">${f.issues.length} <span style="font-size:13px;color:var(--text-3);font-weight:500;">/ ${total} (${pct(f.issues.length,total)}%)</span></p>
+      <p class="fnote">${f.note}</p>
+    </div>
+  `).join('');
+  document.querySelectorAll('#flags .flag').forEach((el,i) => {
+    el.addEventListener('click', () => openDrawer(withIssues[i].name, withIssues[i].issues));
+  });
+}
+
+function render(){
+  renderLabelTabs();
+  populateMyNameSelect();
+  renderSprintSelect();
+  renderCoveragePanel();
+  const issues = baseIssues();
+  renderCards(issues);
+  renderAgeStack(issues);
+  renderChart(issues);
+  renderAssignees(issues);
+  renderFlags(issues);
+  renderDelta(issues);
+}
+
+document.getElementById('issueViewToggle').addEventListener('click', (e) => {
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#issueViewToggle button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  issueView = e.target.dataset.view;
+  sprintFilter = 'ALL';
+  render();
+});
+document.getElementById('scopeToggle').addEventListener('click', (e) => {
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#scopeToggle button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  scope = e.target.dataset.scope;
+  render();
+});
+document.getElementById('sprintSelect').addEventListener('change', (e) => { sprintFilter = e.target.value; render(); });
+document.getElementById('myNameSelect').addEventListener('change', (e) => {
+  myName = e.target.value;
+  myTicketsOnly = myName !== '';
+  render();
+});
+
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e4e6ec;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9498a5;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#14151c;">Sign in to view Jira Hygiene</h1>
+        <p style="font-size:13px;color:#5c6070;line-height:1.5;margin:0 0 22px;">This dashboard shows live Jira data and requires your Atlassian account.</p>
+        <button onclick="window.location.href='/api/auth/login?returnTo=/hygiene.html'" style="width:100%;padding:11px;border-radius:8px;border:none;background:#1a56a8;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+async function fetchLiveHygiene(){
+  try{
+    // Always bypass the sessionStorage cache — boot() only runs on first
+    // mount or an explicit Refresh click, so this can't cause duplicate
+    // Jira calls from ordinary tab switching, and a stale cache hit here
+    // was silently defeating the Refresh button.
+    const res = await fetch(PROXY_BASE + '/api/hygiene?program=' + encodeURIComponent(PROGRAM_ID), { cache: 'no-store', credentials: 'include' });
+    if(res.status === 401){ showLoginGate(); throw new Error('not authenticated'); }
+    if(!res.ok) throw new Error('proxy responded ' + res.status);
+    const json = await res.json();
+    if(!json.data) throw new Error('unexpected response shape');
+    DATA = json.data;
+    EPIC_DATA = json.epicData || {};
+    // Acceptance Criteria only applies to story-type work in this org's
+    // workflow — "Story" and "Tech Story" both get written up with AC,
+    // but Bugs, Epics and Sub-tasks never carry it, so an empty AC field
+    // on those isn't a real hygiene gap, it's just a field that ticket
+    // type never uses. lib/jira.js computes `ac` purely from whether the
+    // AC field is empty, with no issue-type check, so every AC-gap metric
+    // on this page (cards, chart, delta banner, breakdown drawer) was
+    // counting Bugs as "missing acceptance criteria." Normalizing it once
+    // here, right after load, means every downstream computation is
+    // correct without hunting down each call site.
+    const AC_ELIGIBLE_TYPES = new Set(['Story', 'Tech Story']);
+    Object.values(DATA).forEach(list => (list || []).forEach(i => { if(!AC_ELIGIBLE_TYPES.has(i.t)) i.ac = false; }));
+    Object.values(EPIC_DATA).forEach(list => (list || []).forEach(i => { if(!AC_ELIGIBLE_TYPES.has(i.t)) i.ac = false; }));
+    if(!DATA[currentLabel]) currentLabel = Object.keys(DATA)[0]; // seed data's labels won't match every program's real streams
+    DATA_PULLED_AT = json.meta && json.meta.dataPulledAt ? json.meta.dataPulledAt : new Date().toISOString();
+    if(json.meta && json.meta.programName){
+      document.getElementById('pageTitle').textContent = json.meta.programName.toUpperCase() + ' JIRA HYGIENE TRACKER';
+      // The tab title and the eyebrow line above the H1 were never wired up
+      // to the real program name — only the big H1 was — so every non-EON
+      // program (anything added through Add Program) permanently showed
+      // "EON Jira hygiene tracker" in the browser tab and "Jira hygiene ·
+      // EON" as the eyebrow, regardless of which program's data was on screen.
+      document.title = json.meta.programName + ' Jira hygiene tracker';
+      const eyebrow = document.querySelector('.eyebrow');
+      if(eyebrow && eyebrow.firstChild) eyebrow.firstChild.textContent = 'Jira hygiene · ' + json.meta.programName + ' ';
+    }
+    liveMode = true;
+    const statusEl = document.getElementById('liveStatus');
+    if(statusEl){ statusEl.textContent = 'Live'; statusEl.className = 'live-pill live'; }
+  }catch(e){
+    console.warn('Live data fetch failed.', e);
+    liveMode = false;
+    const statusEl = document.getElementById('liveStatus');
+    if(statusEl){ statusEl.textContent = 'Data unavailable'; statusEl.className = 'live-pill offline'; }
+    throw e;
+  }
+}
+
+function requestRefresh(){
+  const btn = document.getElementById('refreshBtn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Refreshing…'; }
+  document.getElementById('loadingText').textContent = 'Refreshing hygiene data from Jira…';
+  document.getElementById('loadingOverlay').classList.add('show');
+  fetchLiveHygiene().then(async () => {
+    try {
+      const covRes = await fetch('/api/sprint-coverage?program=' + encodeURIComponent(PROGRAM_ID), { cache: 'no-store', credentials: 'include' });
+      if(covRes.ok){
+        const covJson = await covRes.json();
+        if(covJson.sprints) SPRINT_COVERAGE = covJson.sprints;
+      }
+    } catch(e) {}
+    renderStamp();
+    render();
+  }).catch(()=>{}).finally(() => {
+    document.getElementById('loadingOverlay').classList.remove('show');
+    if(btn){ btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg> Refresh'; }
+  });
+}
+
+async function boot(){
+  document.getElementById('loadingText').textContent = 'Loading hygiene data from Jira…';
+  document.getElementById('loadingOverlay').classList.add('show');
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    if(!me.authenticated){ showLoginGate(); return; }
+  } catch(e) {
+    showLoginGate();
+    return;
+  }
+  try {
+    await fetchLiveHygiene();
+  } catch(e) {
+    document.getElementById('loadingOverlay').classList.remove('show');
+    return; // login gate already shown, or a genuine data error was logged
+  }
+  try {
+    const covRes = await fetch('/api/sprint-coverage?program=' + encodeURIComponent(PROGRAM_ID), { cache: 'no-store', credentials: 'include' });
+    if(covRes.ok){
+      const covJson = await covRes.json();
+      if(covJson.sprints) SPRINT_COVERAGE = covJson.sprints;
+    }
+  } catch(e) {
+    console.warn('Sprint coverage fetch failed — coverage panel will stay hidden.', e);
+  }
+  renderStamp();
+  // Every load — first visit, hard refresh, or the Refresh button — starts
+  // on "Everyone" rather than silently re-applying whatever name was
+  // previously selected (that used to be remembered via localStorage and
+  // made the dashboard look stuck showing one person's data).
+  myTicketsOnly = false;
+  myName = '';
+  render();
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+boot();
+</script>
+</body>
+</html>

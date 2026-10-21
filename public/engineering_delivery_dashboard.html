@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Program Delivery Intelligence</title>
+<style>
+  :root{
+    --bg:#f6f6fb; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --ink:#1c1a2e; --ink-2:#5c5875; --ink-3:#948fac;
+    --blue:#1a56a8; --blue-bg:#e9f1fb;
+    --red:#c0392b; --red-bg:#fceceb;
+    --amber:#b8790f; --amber-bg:#fbf1de;
+    --green:#1c7a4d; --green-bg:#e8f5ee;
+    --violet:#5b3fa0; --violet-bg:#f0ecfa;
+    --grey:#948fac; --grey-bg:#f0eff5;
+    --mono:'SF Mono','Consolas',monospace;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(20,21,28,0.04), 0 6px 18px -10px rgba(20,21,28,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:26px;}
+  .wrap{max-width:1200px;margin:0 auto;}
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:6px;flex-wrap:wrap;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin:0 0 5px;}
+  h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-0.015em;}
+  .stamp{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);text-align:right;}
+  .phase-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--violet-bg);color:var(--violet);margin-left:8px;text-transform:uppercase;letter-spacing:0.03em;}
+  .live-pill{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;letter-spacing:0.03em;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;text-transform:uppercase;}
+  .live-pill.live{background:var(--green-bg);color:var(--green);}
+  .live-pill.live::before{content:'●';font-size:8px;}
+  .live-pill.offline{background:var(--amber-bg);color:var(--amber);}
+
+  .controls-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;}
+  .label-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .label-tab{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;color:var(--ink-2);}
+  .label-tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .toggle{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;background:#fff;}
+  .toggle button{border:none;background:transparent;padding:7px 14px;font-size:13px;font-weight:500;color:var(--ink-2);cursor:pointer;}
+  .toggle button.active{background:var(--ink);color:#fff;}
+  #sprintSelect{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;color:var(--ink);font-family:inherit;}
+
+  .honesty-box{background:#fff;border:1px solid var(--border);border-left:3px solid var(--violet);border-radius:10px;padding:14px 18px;margin:16px 0;font-size:12.5px;color:var(--ink-2);line-height:1.6;}
+  .honesty-box strong{color:var(--ink);}
+  .honesty-box .gaps{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .gap-chip{font-size:10.5px;font-family:var(--mono);background:var(--grey-bg);color:var(--ink-2);padding:2px 8px;border-radius:6px;}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:16px 0;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:15px 17px;box-shadow:var(--shadow);}
+  .card .label{font-size:11px;color:var(--ink-2);margin:0 0 6px;font-weight:600;}
+  .card .value{font-family:var(--mono);font-size:24px;font-weight:700;margin:0;}
+  .card .hint{font-size:10.5px;color:var(--ink-3);margin:5px 0 0;}
+  .card.ok .value{color:var(--green);}
+  .card.warn .value{color:var(--amber);}
+  .card.bad .value{color:var(--red);}
+
+  .section{margin:18px 0;}
+  .section-head{display:flex;align-items:center;gap:8px;margin:0 0 4px;}
+  .info-btn{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:800;font-style:italic;font-family:Georgia,'Times New Roman',serif;cursor:pointer;flex-shrink:0;user-select:none;box-shadow:0 1px 3px rgba(26,86,168,0.4);transition:transform .12s ease, box-shadow .12s ease, background .12s ease;}
+  .info-btn:hover{transform:scale(1.18);box-shadow:0 3px 10px rgba(26,86,168,0.5);}
+  .info-btn.pinned{background:var(--violet);box-shadow:0 3px 10px rgba(124,58,173,0.5);}
+  .info-popover{display:none;position:fixed;background:#fff;border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 12px 34px rgba(20,21,28,0.22);padding:13px 15px;width:270px;z-index:70;font-size:11.5px;color:var(--ink-2);line-height:1.55;font-weight:400;text-align:left;cursor:default;visibility:hidden;}
+  .info-popover.show{display:block;}
+  .info-popover::before{content:'';position:absolute;border:7px solid transparent;left:var(--arrow-left, 20px);transform:translateX(-50%);}
+  .info-popover.arrow-below::before{top:-13px;border-bottom-color:#fff;filter:drop-shadow(0 -3px 2px rgba(20,21,28,0.06));}
+  .info-popover.arrow-above::before{bottom:-13px;border-top-color:#fff;filter:drop-shadow(0 3px 2px rgba(20,21,28,0.06));}
+  .info-popover strong{color:var(--ink);}
+  .section-head .bar{width:3px;height:15px;border-radius:2px;background:var(--blue);}
+  .section-head h2{font-size:14px;font-weight:700;margin:0;}
+  .section-desc{font-size:11.5px;color:var(--ink-2);margin:0 0 12px 13px;}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-3);font-weight:700;padding:0 8px 7px;border-bottom:1px solid var(--border);}
+  th.num{text-align:right;}
+  td{padding:8px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td.num{text-align:right;font-family:var(--mono);}
+  tr.clickable{cursor:pointer;}
+  tr.clickable:hover{background:#fafbfc;}
+  .name-cell{font-weight:600;}
+  .stage-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;}
+  .stage-pill.active{background:var(--green-bg);color:var(--green);}
+  .stage-pill.waiting{background:var(--amber-bg);color:var(--amber);}
+  .stage-pill.blocked{background:var(--red-bg);color:var(--red);}
+  .stage-pill.terminal{background:var(--grey-bg);color:var(--ink-2);}
+  .stage-pill.exception{background:var(--grey-bg);color:var(--ink-3);}
+  .stage-pill.other{background:var(--blue-bg);color:var(--blue);}
+
+  /* Stage timeline bar — the signature element: a segmented horizontal bar
+     showing exactly where a ticket's time actually went. */
+  .flow-bar{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--grey-bg);width:100%;min-width:120px;}
+  .flow-seg{height:100%;}
+  .flow-seg.active{background:#33b47a;}
+  .flow-seg.waiting{background:#e0c66b;}
+  .flow-seg.blocked{background:#e0716e;}
+  .flow-seg.terminal{background:#c9cdd6;}
+  .flow-seg.exception{background:#c9cdd6;}
+  .flow-seg.other{background:#8fb4e0;}
+
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .pill.bad{background:var(--red-bg);color:var(--red);}
+  .pill.warn{background:var(--amber-bg);color:var(--amber);}
+  .pill.ok{background:var(--green-bg);color:var(--green);}
+
+  .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--ink-2);font-size:13px;text-align:center;}
+  .spin{display:inline-block;width:22px;height:22px;border:3px solid var(--border-strong);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px;}
+  .hero-refresh{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--blue);background:#fff;border:1px solid var(--border-strong);border-radius:7px;padding:6px 12px;cursor:pointer;}
+  .hero-refresh:hover{background:var(--blue-bg);}
+  .hero-refresh:disabled{opacity:0.6;cursor:default;}
+  .btn-spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(26,86,168,0.25);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(20,21,28,0.45);z-index:50;align-items:flex-start;justify-content:center;padding:60px 20px;}
+  .drawer-overlay.open{display:flex;}
+  .drawer{background:var(--card);border-radius:14px;max-width:640px;width:100%;max-height:76vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+  .drawer-head h3{font-size:13px;font-weight:700;margin:0;}
+  .drawer-head button{border:none;background:none;font-size:19px;color:var(--ink-3);cursor:pointer;line-height:1;padding:4px;}
+  .drawer-body{overflow-y:auto;padding:16px 18px;}
+  .timeline-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;}
+  .timeline-row:last-child{border-bottom:none;}
+  .timeline-status{width:150px;flex-shrink:0;font-weight:600;}
+  .type-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;flex-shrink:0;vertical-align:middle;margin-right:5px;}
+  .timeline-bar-track{flex:1;height:8px;background:var(--grey-bg);border-radius:4px;overflow:hidden;}
+  .timeline-bar-fill{height:100%;}
+  .timeline-dur{width:70px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--ink-2);flex-shrink:0;}
+
+  .note{font-size:11px;color:var(--ink-3);line-height:1.6;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);margin-top:16px;}
+  .note code{font-family:var(--mono);background:var(--grey-bg);padding:1px 5px;border-radius:4px;font-size:10.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">EON &middot; Program Delivery Intelligence <span class="phase-pill">Phase 1</span> <span id="liveStatus" class="live-pill offline">Checking...</span></p>
+      <h1 style="display:inline-flex;align-items:center;gap:8px;">Where the time actually goes<span class="info-btn" data-info="info-overview">i</span></h1>
+      <div class="info-popover" id="info-overview">Everything below is reconstructed from real Jira status-change history. <strong>Flow Efficiency</strong> = Active Time ÷ (Active + Waiting + Blocked) × 100. Hover or click the <span class="info-btn" style="cursor:default;">i</span> on any section for what that specific view means.</div>
+    </div>
+    <div style="text-align:right;">
+      <button class="hero-refresh" id="refreshBtn" onclick="boot()" style="margin-bottom:6px;">↻ Refresh</button>
+      <p class="stamp" id="dataStamp"></p>
+    </div>
+  </div>
+
+  <div class="honesty-box">
+    <strong>What this reconstructs vs. what it can't see.</strong> Every number below comes from real Jira status-change history — not estimated. But several stages in the full delivery lifecycle have no Jira status at all yet, so they're not fabricated here:
+    <div class="gaps" id="gapChips"></div>
+  </div>
+
+  <div class="honesty-box" style="border-left-color:var(--blue);">
+    <strong>Reading the bars.</strong> Every colored bar on this page (flow bars, timelines) uses the same three colors — <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:2px;background:#33b47a;display:inline-block;"></span><b>active work</b></span>, <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:2px;background:#e0c66b;display:inline-block;"></span><b>waiting in a queue</b></span>, and <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:2px;background:#e0716e;display:inline-block;"></span><b>blocked</b></span> — segment width shows how long each stage actually took, not just that it happened. <strong>Flow efficiency</strong> = active time ÷ (active + waiting + blocked) — a ticket where work is happening most of the time scores high; one that mostly sits in queues scores low, even if it eventually finishes on schedule.
+  </div>
+
+  <div class="controls-row" id="controlsRow" style="display:none;">
+    <div class="label-row" id="labelRow"></div>
+    <div class="toggle" id="scopeToggle">
+      <button data-scope="all">All issues</button>
+      <button data-scope="open" class="active">Open only</button>
+    </div>
+    <select id="sprintSelect"></select>
+  </div>
+
+  <div id="loadingState" class="loading">
+    <div class="spin"></div>
+    <div>Reconstructing ticket history from Jira changelog — this pulls full history for every ticket, so it's slower than the other dashboards.</div>
+  </div>
+
+  <div id="mainContent" style="display:none;">
+
+    <div class="cards" id="overviewCards"></div>
+
+    <div class="section">
+      <div class="section-head"><div class="bar"></div><h2>Time in stage, on average</h2><span class="info-btn" data-info="info-stage">i</span><div class="info-popover" id="info-stage">Every ticket's real time-in-status, reconstructed from Jira's <strong>changelog</strong> — not an estimate. <strong style="color:var(--green);">Green</strong> = active work (Dev In Progress, QA). <strong style="color:var(--amber);">Amber</strong> = waiting in a queue. <strong style="color:var(--red);">Red</strong> = explicitly Blocked. Grey/other = Done or not yet mapped to a category.</div></div>
+      <p class="section-desc">Across every ticket that passed through each stage — this is where lead time is actually spent</p>
+      <div class="panel"><table><thead><tr><th>Stage</th><th>Category</th><th class="num">Tickets through</th><th class="num">Avg time</th><th class="num">Total time</th></tr></thead><tbody id="stageRows"></tbody></table></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="bar" style="background:var(--red);"></div><h2>Most blocked tickets</h2><span class="info-btn" data-info="info-blocked">i</span><div class="info-popover" id="info-blocked">Ranked by <strong>total time ever blocked</strong>, not just current status. A ticket can be blocked, unblocked, and blocked again — this sums every occurrence across its whole history.</div></div>
+      <p class="section-desc">Ranked by total time-ever-blocked, not just current status — click for the full timeline</p>
+      <div class="panel"><table><thead><tr><th>Ticket</th><th class="num">Blocked time</th><th class="num">Flow efficiency</th><th>Timeline</th></tr></thead><tbody id="blockedRows"></tbody></table></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="bar" style="background:var(--violet);"></div><h2>Most reworked tickets</h2><span class="info-btn" data-info="info-rework">i</span><div class="info-popover" id="info-rework"><strong>Rework</strong> = the ticket moved backward at least once, e.g. sent back to Development after already reaching QA or Peer Review. <strong>Oscillation</strong> counts any status revisited more than once, including quick corrections — a high number isn't always a problem, check the timeline to see if it's a real back-and-forth or just a fast fix.</div></div>
+      <p class="section-desc">Tickets that went backward at least once (e.g. back to Development after reaching QA or PR Review)</p>
+      <div class="panel"><table><thead><tr><th>Ticket</th><th class="num">Rework events</th><th class="num">Status oscillations</th><th>Timeline</th></tr></thead><tbody id="reworkRows"></tbody></table></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="bar" style="background:var(--green);"></div><h2>Flow efficiency by ticket</h2><span class="info-btn" data-info="info-flow">i</span><div class="info-popover" id="info-flow"><strong>Formula:</strong> Active Time ÷ (Active + Waiting + Blocked) × 100. Time in Done/Rejected doesn't count either way. <strong style="color:var(--green);">≥60% green</strong>, <strong style="color:var(--amber);">35–59% amber</strong>, <strong style="color:var(--red);">&lt;35% red</strong> — these are general defaults, not yet calibrated to your team's own historical baseline.</div></div>
+      <p class="section-desc">Active work time as a share of total lead time — click any row for its full stage-by-stage timeline</p>
+      <div class="panel"><table><thead><tr><th>Ticket</th><th>Owner</th><th class="num">Lead time</th><th>Flow</th><th class="num">Efficiency</th></tr></thead><tbody id="allTicketRows"></tbody></table></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="bar" style="background:#8b7ce8;"></div><h2>Ownership</h2><span class="info-btn" data-info="info-owner">i</span><div class="info-popover" id="info-owner">Total time each person has actually <strong>held</strong> a ticket, read from assignee-change events in the changelog — plus how many times that ownership handed off to someone else.</div></div>
+      <p class="section-desc">Total time each person has held a ticket, and how many times ownership changed hands</p>
+      <div class="panel"><table><thead><tr><th>Owner</th><th class="num">Tickets touched</th><th class="num">Total owned time</th><th class="num">Handoffs</th></tr></thead><tbody id="ownerRows"></tbody></table></div>
+    </div>
+
+    <div class="note" id="perfNote"></div>
+
+    <div class="section" style="margin-top:28px;border-top:2px solid var(--border);padding-top:24px;">
+      <div class="section-head"><div class="bar" style="background:var(--blue);"></div><h2>Quarterly epic view — <span id="epicStreamLabel"></span></h2><span class="info-btn" data-info="info-epic">i</span><div class="info-popover" id="info-epic">Every epic under this label — <strong>regardless of sprint</strong>, this is the full committed scope. <strong>Idle</strong> = time since its last status change. A short Flow bar is normal for epics with sparse history — one status change is still real signal.</div></div>
+      <p class="section-desc">Every epic under this label's full commitment, regardless of sprint — click any row for its full flow timeline, same as a Tech Story. Epics often have sparser changelogs, so a short flow bar is normal.</p>
+      <div class="panel">
+        <table><thead><tr><th>Epic</th><th>Status</th><th class="num">Idle in current status</th><th class="num">Age</th><th>Flow</th><th class="num">Tickets</th><th>Progress</th><th class="num">Blocked</th></tr></thead><tbody id="epicRows"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="if(event.target===this) closeDrawer()">
+  <div class="drawer">
+    <div class="drawer-head"><h3 id="drawerTitle">Ticket timeline</h3><button onclick="closeDrawer()" aria-label="Close">&times;</button></div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+</div>
+
+<script src="/js/cache-client.js"></script>
+<script>
+const JIRA_BASE = "https://zeta-tm.atlassian.net/browse/";
+const PROGRAM_ID = new URLSearchParams(window.location.search).get('program') || 'eon';
+let STREAMS_DATA = {};
+let UNTRACKED_STAGES = [];
+let currentLabel = null;
+let scope = 'open';
+let sprintFilter = 'ALL';
+
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e4e6ec;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 1px 2px rgba(20,21,28,0.04),0 8px 24px -12px rgba(20,21,28,0.12);">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#948fac;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#14151c;">Sign in to continue</h1>
+        <p style="font-size:13px;color:#5c6070;line-height:1.5;margin:0 0 22px;">Requires your Atlassian account.</p>
+        <button onclick="window.location.href='/api/auth/login?returnTo=/engineering_delivery_dashboard.html'" style="width:100%;padding:11px;border-radius:8px;border:none;background:#1a56a8;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+function closeAllInfoPopovers(){
+  document.querySelectorAll('.info-popover.show').forEach(p => { p.classList.remove('show'); p.style.visibility = 'hidden'; });
+  document.querySelectorAll('.info-btn.pinned').forEach(b => b.classList.remove('pinned'));
+}
+function positionPopover(btn, popover){
+  popover.style.visibility = 'hidden';
+  popover.classList.add('show');
+  const btnRect = btn.getBoundingClientRect();
+  const popW = popover.offsetWidth;
+  const popH = popover.offsetHeight;
+  let left = btnRect.left + btnRect.width/2 - popW/2;
+  left = Math.max(12, Math.min(left, window.innerWidth - popW - 12));
+  const spaceBelow = window.innerHeight - btnRect.bottom;
+  const spaceAbove = btnRect.top;
+  const below = spaceBelow >= popH + 16 || spaceBelow >= spaceAbove;
+  const top = below ? btnRect.bottom + 11 : btnRect.top - popH - 11;
+  const arrowLeft = (btnRect.left + btnRect.width/2) - left;
+  popover.style.left = left + 'px';
+  popover.style.top = Math.max(8, top) + 'px';
+  popover.style.setProperty('--arrow-left', arrowLeft + 'px');
+  popover.classList.toggle('arrow-below', below);
+  popover.classList.toggle('arrow-above', !below);
+  popover.style.visibility = 'visible';
+}
+function initInfoButtons(){
+  document.querySelectorAll('.info-btn[data-info]').forEach(btn => {
+    const popover = document.getElementById(btn.dataset.info);
+    if(!popover) return;
+    btn.addEventListener('mouseenter', () => { if(!btn.classList.contains('pinned')) positionPopover(btn, popover); });
+    btn.addEventListener('mouseleave', () => { if(!btn.classList.contains('pinned')){ popover.classList.remove('show'); popover.style.visibility='hidden'; } });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasPinned = btn.classList.contains('pinned');
+      closeAllInfoPopovers();
+      if(!wasPinned){ btn.classList.add('pinned'); positionPopover(btn, popover); }
+    });
+    popover.addEventListener('click', (e) => e.stopPropagation());
+  });
+  document.addEventListener('click', closeAllInfoPopovers);
+  window.addEventListener('scroll', closeAllInfoPopovers, { passive: true });
+  window.addEventListener('resize', closeAllInfoPopovers);
+}
+initInfoButtons();
+
+function typeIcon(type){
+  const T = {
+    'Story':      { bg:'#65ba43', path:'M4 2.5h6a1 1 0 011 1v8.2l-4-2.3-4 2.3V3.5a1 1 0 011-1z' },
+    'Bug':        { bg:'#e2483d', path:'M7 4.2a2.6 2.6 0 012.6 2.6v1.4A2.6 2.6 0 017 10.8 2.6 2.6 0 014.4 8.2V6.8A2.6 2.6 0 017 4.2z', extra:'<path d="M3 6.5l1.6 1M11 6.5l-1.6 1M3 10l1.8-.9M11 10l-1.8-.9M7 3.5V2M5.5 3l-.8-1M8.5 3l.8-1" stroke="#fff" stroke-width="0.8" fill="none" stroke-linecap="round"/>' },
+    'Task':       { bg:'#4bade8', path:'M3.5 3.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z', extra:'<path d="M5 7l1.4 1.4L9.3 5.5" stroke="#fff" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+    'Tech Story': { bg:'#6554c0', path:'', extra:'<path d="M4.8 4.2L2.5 7l2.3 2.8M9.2 4.2L11.5 7l-2.3 2.8M7.6 3l-1.2 8" stroke="#fff" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+    'Epic':       { bg:'#8b3ee8', path:'M8.3 1.5L3.2 8h2.9l-1 4.5L10 6H7.1z' },
+    'Sub-task':   { bg:'#4bade8', path:'M4 4h6a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z', extra:'<path d="M5.3 7l1 1 1.6-1.8" stroke="#fff" stroke-width="0.9" fill="none" stroke-linecap="round"/>' },
+  };
+  const conf = T[type];
+  const bg = conf ? conf.bg : '#948fac';
+  const inner = conf ? `<path d="${conf.path}" fill="#fff"/>${conf.extra||''}` : `<text x="7" y="10" font-size="8" fill="#fff" text-anchor="middle" font-family="sans-serif">${(type||'?').charAt(0)}</text>`;
+  return `<span class="type-icon" title="${type||'Unknown type'}" style="background:${bg};"><svg viewBox="0 0 14 14" width="13" height="13" style="display:block;">${inner}</svg></span>`;
+}
+
+function fmtDur(ms){
+  if(ms == null) return '—';
+  const hrs = ms/3600000;
+  if(hrs < 24) return hrs.toFixed(1)+'h';
+  return (hrs/24).toFixed(1)+'d';
+}
+function fmtDate(iso){ return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+
+function openDrawer(ticket){
+  const key = ticket.k || ticket.key;
+  document.getElementById('drawerTitle').textContent = `${key} — ${ticket.sum}`;
+  const body = document.getElementById('drawerBody');
+
+  if(!ticket.metrics || !ticket.segments || !ticket.segments.length){
+    body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--ink-3);font-size:12.5px;">No changelog history available for this item — couldn't reconstruct its timeline.</div><div style="margin-top:14px;text-align:center;"><a href="${JIRA_BASE}${key}" target="_blank" rel="noopener" style="color:var(--blue);font-size:12.5px;font-weight:600;">Open in Jira →</a></div>`;
+    document.getElementById('drawerOverlay').classList.add('open');
+    return;
+  }
+
+  const total = ticket.metrics.leadTimeMs || 1;
+  const rows = ticket.segments.map(s => {
+    const pct = Math.max(1, (s.durationMs/total*100));
+    return `
+      <div class="timeline-row">
+        <div class="timeline-status"><span class="stage-pill ${s.category}">${s.stage}</span></div>
+        <div class="timeline-bar-track"><div class="timeline-bar-fill flow-seg ${s.category}" style="width:${pct}%;"></div></div>
+        <div class="timeline-dur">${fmtDur(s.durationMs)}</div>
+      </div>`;
+  }).join('');
+  const metricsSummary = `
+    <div style="display:flex;gap:18px;margin-bottom:14px;flex-wrap:wrap;">
+      <div><span style="font-family:var(--mono);font-size:18px;font-weight:700;">${ticket.metrics.flowEfficiencyPct ?? '—'}%</span><br><span style="font-size:10.5px;color:var(--ink-2);">Flow efficiency</span></div>
+      <div><span style="font-family:var(--mono);font-size:18px;font-weight:700;">${fmtDur(ticket.metrics.leadTimeMs)}</span><br><span style="font-size:10.5px;color:var(--ink-2);">Lead time</span></div>
+      <div><span style="font-family:var(--mono);font-size:18px;font-weight:700;">${ticket.metrics.reworkCount}</span><br><span style="font-size:10.5px;color:var(--ink-2);">Rework events</span></div>
+      <div><span style="font-family:var(--mono);font-size:18px;font-weight:700;">${fmtDur(ticket.metrics.blockedMs)}</span><br><span style="font-size:10.5px;color:var(--ink-2);">Blocked time</span></div>
+    </div>`;
+  body.innerHTML = metricsSummary + rows + `<div style="margin-top:14px;"><a href="${JIRA_BASE}${key}" target="_blank" rel="noopener" style="color:var(--blue);font-size:12.5px;font-weight:600;">Open in Jira →</a></div>`;
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer(){ document.getElementById('drawerOverlay').classList.remove('open'); }
+
+function miniFlowBar(ticket){
+  if(!ticket.metrics || !ticket.segments || !ticket.segments.length) return '<span style="font-size:10.5px;color:var(--ink-3);">no history</span>';
+  const total = ticket.metrics.leadTimeMs || 1;
+  return `<div class="flow-bar">${ticket.segments.map(s => `<div class="flow-seg ${s.category}" style="width:${Math.max(0.5,s.durationMs/total*100)}%;"></div>`).join('')}</div>`;
+}
+
+function currentSet(){
+  const all = (STREAMS_DATA[currentLabel] && STREAMS_DATA[currentLabel].tickets) || [];
+  let list = all;
+  if(scope === 'open') list = list.filter(t => t.currentCategory !== 'Done');
+  if(sprintFilter === 'NONE') list = list.filter(t => !t.sprints || !t.sprints.length);
+  else if(sprintFilter !== 'ALL') list = list.filter(t => t.sprints && t.sprints.includes(sprintFilter));
+  return list;
+}
+
+function renderLabelTabs(){
+  const row = document.getElementById('labelRow');
+  const labels = Object.keys(STREAMS_DATA);
+  row.innerHTML = labels.map(l => `<button class="label-tab ${l===currentLabel?'active':''}" data-label="${l}">${l}</button>`).join('');
+  row.querySelectorAll('.label-tab').forEach(btn => {
+    btn.addEventListener('click', () => { currentLabel = btn.dataset.label; sprintFilter = 'ALL'; render(); });
+  });
+}
+
+function renderSprintSelect(){
+  const all = (STREAMS_DATA[currentLabel] && STREAMS_DATA[currentLabel].tickets) || [];
+  const sprints = [...new Set(all.map(t => t.sprint).filter(Boolean))];
+  const numOf = s => { const m = s.match(/(\d+)\s*$/); return m ? parseInt(m[1],10) : -1; };
+  const recent = sprints.sort((a,b) => numOf(b) - numOf(a)).slice(0, 3);
+  const sel = document.getElementById('sprintSelect');
+  sel.innerHTML = `<option value="ALL">All sprints</option><option value="NONE">No sprint</option>` + recent.map(s => `<option value="${s}">${s}</option>`).join('');
+  if(sprintFilter !== 'ALL' && sprintFilter !== 'NONE' && !recent.includes(sprintFilter)) sprintFilter = 'ALL';
+  sel.value = sprintFilter;
+}
+
+function renderEpics(){
+  document.getElementById('epicStreamLabel').textContent = currentLabel;
+  const epics = (STREAMS_DATA[currentLabel] && STREAMS_DATA[currentLabel].epics) || [];
+  const sorted = epics.slice().sort((a,b) => (b.idleMs||0) - (a.idleMs||0));
+  document.getElementById('epicRows').innerHTML = sorted.map((e,i) => {
+    const p = e.tickets ? Math.round(e.done/e.tickets*100) : 0;
+    const notStarted = e.tickets === 0;
+    return `
+      <tr class="clickable" data-epic-idx="${i}">
+        <td>${typeIcon('Epic')}<a href="${JIRA_BASE}${e.key}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-family:var(--mono);color:var(--blue);font-weight:700;text-decoration:none;">${e.key}</a><div style="font-size:11px;color:var(--ink-2);max-width:260px;">${e.sum}</div></td>
+        <td><span class="stage-pill other">${e.status}</span></td>
+        <td class="num">${fmtDur(e.idleMs)}</td>
+        <td class="num">${fmtDur(e.ageMs)}</td>
+        <td style="min-width:110px;">${miniFlowBar(e)}</td>
+        <td class="num">${e.tickets}</td>
+        <td>${notStarted ? '<span class="pill bad">Not broken down</span>' : `${p}% (${e.done}/${e.tickets})`}</td>
+        <td class="num">${e.blocked>0?`<span class="pill bad">${e.blocked}</span>`:'0'}</td>
+      </tr>`;
+  }).join('');
+  document.querySelectorAll('#epicRows tr').forEach(tr => {
+    tr.addEventListener('click', () => openDrawer(sorted[parseInt(tr.dataset.epicIdx,10)]));
+  });
+}
+
+
+function render(){
+  document.getElementById('gapChips').innerHTML = UNTRACKED_STAGES.map(g => `<span class="gap-chip" title="${g.note}">${g.stage}</span>`).join('');
+
+  renderLabelTabs();
+  renderSprintSelect();
+  const total = (STREAMS_DATA[currentLabel] && STREAMS_DATA[currentLabel].tickets) || [];
+  const inFilter = currentSet(); // same sprint+scope filter as valid, but includes failed-to-load ones too
+  const valid = inFilter.filter(t => !t.error);
+
+  let emptyBanner = document.getElementById('emptyFilterBanner');
+  if(!emptyBanner){
+    emptyBanner = document.createElement('div');
+    emptyBanner.id = 'emptyFilterBanner';
+    emptyBanner.className = 'banner';
+    document.getElementById('controlsRow').insertAdjacentElement('afterend', emptyBanner);
+  }
+  if(valid.length === 0 && total.length > 0){
+    const sprintDesc = sprintFilter === 'ALL' ? '' : sprintFilter === 'NONE' ? ' with no sprint assigned' : ` in ${sprintFilter}`;
+    const scopeDesc = scope === 'open' ? 'open ' : '';
+    emptyBanner.style.display = 'flex';
+    if(inFilter.length > 0){
+      // Tickets genuinely exist and match this filter — they just failed to load.
+      // This is a reliability issue, not a filter issue, so "try All issues" would be
+      // actively misleading here (confirmed real bug: it showed even when All issues
+      // was already selected).
+      emptyBanner.innerHTML = `<span class="dot"></span><span><strong>${inFilter.length} ticket(s) didn't load in time</strong> for ${currentLabel}${sprintDesc} — this is usually a transient Jira rate-limit on a large pull, not a missing-data issue. Click <strong>Refresh</strong> to try again.</span>`;
+    } else {
+      // No tickets actually match this filter combination — the original, correct case.
+      emptyBanner.innerHTML = `<span class="dot"></span><span><strong>No ${scopeDesc}tickets found</strong> for ${currentLabel}${sprintDesc}. ${total.length} total tickets exist for this label — try "All issues" or a different sprint.</span>`;
+    }
+  } else {
+    emptyBanner.style.display = 'none';
+  }
+
+  const withEff = valid.filter(t => t.metrics.flowEfficiencyPct != null);
+  const avgEff = withEff.length ? Math.round(withEff.reduce((s,t)=>s+t.metrics.flowEfficiencyPct,0)/withEff.length) : null;
+  const totalBlocked = valid.reduce((s,t)=>s+t.metrics.blockedMs,0);
+  const totalRework = valid.reduce((s,t)=>s+t.metrics.reworkCount,0);
+  const avgLead = valid.length ? valid.reduce((s,t)=>s+t.metrics.leadTimeMs,0)/valid.length : 0;
+
+  document.getElementById('overviewCards').innerHTML = `
+    <div class="card ${avgEff>=60?'ok':avgEff>=35?'warn':'bad'}"><p class="label">Avg flow efficiency</p><p class="value">${avgEff ?? '—'}%</p><p class="hint">across ${withEff.length} tickets</p></div>
+    <div class="card"><p class="label">Avg lead time</p><p class="value">${fmtDur(avgLead)}</p><p class="hint">creation to now/done</p></div>
+    <div class="card ${totalBlocked>0?'bad':'ok'}"><p class="label">Total blocked time</p><p class="value">${fmtDur(totalBlocked)}</p><p class="hint">summed across all tickets</p></div>
+    <div class="card ${totalRework>0?'warn':'ok'}"><p class="label">Rework events</p><p class="value">${totalRework}</p><p class="hint">backward transitions detected</p></div>
+    <div class="card ${(inFilter.length - valid.length) > 0 ? 'warn' : 'ok'}"><p class="label">Tickets analyzed</p><p class="value">${valid.length}<span style="font-size:13px;color:var(--ink-3);">/${inFilter.length}</span></p><p class="hint">${(inFilter.length - valid.length) > 0 ? `${inFilter.length - valid.length} didn't load in time — often transient, try Refresh` : 'all loaded successfully'}</p></div>
+  `;
+
+  // Stage aggregation
+  const stageAgg = {};
+  valid.forEach(t => {
+    t.segments.forEach(s => {
+      stageAgg[s.stage] = stageAgg[s.stage] || { category: s.category, totalMs: 0, tickets: new Set() };
+      stageAgg[s.stage].totalMs += s.durationMs;
+      stageAgg[s.stage].tickets.add(t.k);
+    });
+  });
+  const stageList = Object.entries(stageAgg).sort((a,b) => b[1].totalMs - a[1].totalMs);
+  document.getElementById('stageRows').innerHTML = stageList.map(([stage, v]) => `
+    <tr>
+      <td class="name-cell">${stage}</td>
+      <td><span class="stage-pill ${v.category}">${v.category}</span></td>
+      <td class="num">${v.tickets.size}</td>
+      <td class="num">${fmtDur(v.totalMs / v.tickets.size)}</td>
+      <td class="num">${fmtDur(v.totalMs)}</td>
+    </tr>`).join('');
+
+  // Most blocked
+  const blockedSorted = valid.filter(t => t.metrics.blockedMs > 0).sort((a,b) => b.metrics.blockedMs - a.metrics.blockedMs).slice(0, 12);
+  document.getElementById('blockedRows').innerHTML = blockedSorted.length ? blockedSorted.map(t => `
+    <tr class="clickable" data-k="${t.k}">
+      <td>${typeIcon(t.t)}<span style="font-family:var(--mono);color:var(--blue);font-weight:700;">${t.k}</span><div style="font-size:11px;color:var(--ink-2);max-width:260px;">${t.sum}</div></td>
+      <td class="num">${fmtDur(t.metrics.blockedMs)}</td>
+      <td class="num">${t.metrics.flowEfficiencyPct ?? '—'}%</td>
+      <td style="min-width:140px;">${miniFlowBar(t)}</td>
+    </tr>`).join('') : '<tr><td colspan="4" style="color:var(--ink-3);text-align:center;padding:16px;">No blocked time recorded.</td></tr>';
+
+  // Most reworked
+  const reworkSorted = valid.filter(t => t.metrics.reworkCount > 0).sort((a,b) => b.metrics.reworkCount - a.metrics.reworkCount).slice(0, 12);
+  document.getElementById('reworkRows').innerHTML = reworkSorted.length ? reworkSorted.map(t => `
+    <tr class="clickable" data-k="${t.k}">
+      <td>${typeIcon(t.t)}<span style="font-family:var(--mono);color:var(--blue);font-weight:700;">${t.k}</span><div style="font-size:11px;color:var(--ink-2);max-width:260px;">${t.sum}</div></td>
+      <td class="num">${t.metrics.reworkCount}</td>
+      <td class="num">${t.metrics.oscillationCount}</td>
+      <td style="min-width:140px;">${miniFlowBar(t)}</td>
+    </tr>`).join('') : '<tr><td colspan="4" style="color:var(--ink-3);text-align:center;padding:16px;">No rework detected.</td></tr>';
+
+  // All tickets by flow efficiency
+  const byEff = valid.slice().sort((a,b) => (a.metrics.flowEfficiencyPct ?? 999) - (b.metrics.flowEfficiencyPct ?? 999));
+  document.getElementById('allTicketRows').innerHTML = byEff.map(t => `
+    <tr class="clickable" data-k="${t.k}">
+      <td>${typeIcon(t.t)}<span style="font-family:var(--mono);color:var(--blue);font-weight:700;">${t.k}</span><div style="font-size:11px;color:var(--ink-2);max-width:220px;">${t.sum}</div></td>
+      <td style="font-size:11.5px;">${t.a}</td>
+      <td class="num">${fmtDur(t.metrics.leadTimeMs)}</td>
+      <td style="min-width:120px;">${miniFlowBar(t)}</td>
+      <td class="num"><span class="pill ${t.metrics.flowEfficiencyPct>=60?'ok':t.metrics.flowEfficiencyPct>=35?'warn':'bad'}">${t.metrics.flowEfficiencyPct ?? '—'}%</span></td>
+    </tr>`).join('');
+
+  // Ownership rollup
+  const byOwner = {};
+  valid.forEach(t => {
+    t.assigneeTimeline.forEach(seg => {
+      byOwner[seg.assignee] = byOwner[seg.assignee] || { tickets: new Set(), totalMs: 0, handoffs: 0 };
+      byOwner[seg.assignee].totalMs += seg.durationMs;
+      byOwner[seg.assignee].tickets.add(t.k);
+    });
+    if(t.assigneeTimeline.length > 1){
+      t.assigneeTimeline.forEach(seg => { byOwner[seg.assignee].handoffs += 1; });
+    }
+  });
+  const ownerList = Object.entries(byOwner).filter(([name])=>name!=='Unassigned').sort((a,b)=>b[1].totalMs-a[1].totalMs);
+  document.getElementById('ownerRows').innerHTML = ownerList.map(([name, v]) => `
+    <tr><td class="name-cell">${name}</td><td class="num">${v.tickets.size}</td><td class="num">${fmtDur(v.totalMs)}</td><td class="num">${v.handoffs}</td></tr>
+  `).join('');
+
+  document.querySelectorAll('tr.clickable').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const t = valid.find(x => x.k === tr.dataset.k);
+      if(t) openDrawer(t);
+    });
+  });
+
+  renderEpics();
+
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+}
+
+async function boot(){
+  const refreshBtn = document.getElementById('refreshBtn');
+  if(refreshBtn){ refreshBtn.disabled = true; refreshBtn.innerHTML = '<span class="btn-spin"></span> Refreshing…'; }
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('loadingState').style.display = 'flex';
+  document.getElementById('loadingState').innerHTML = `<div class="spin"></div><div>Reconstructing ticket history from Jira changelog — this pulls full history for every ticket, so it's slower than the other dashboards.</div>`;
+
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    if(!me.authenticated){ showLoginGate(); return; }
+  } catch(e) { showLoginGate(); return; }
+
+  const statusEl = document.getElementById('liveStatus');
+  try {
+    // Always bypass the sessionStorage cache — boot() only runs on first
+    // mount or an explicit Refresh click, so this can't cause duplicate
+    // Jira calls from ordinary tab switching, and a stale cache hit here
+    // was silently defeating the Refresh button.
+    const res = await fetch('/api/delivery-intelligence?program=' + encodeURIComponent(PROGRAM_ID), { cache: 'no-store', credentials: 'include' });
+    if(res.status === 401){ showLoginGate(); return; }
+    if(!res.ok) throw new Error('proxy responded ' + res.status);
+    const json = await res.json();
+    if(!json.streams) throw new Error('unexpected response shape');
+
+    STREAMS_DATA = json.streams;
+    if(!currentLabel || !STREAMS_DATA[currentLabel]) currentLabel = Object.keys(STREAMS_DATA)[0];
+    UNTRACKED_STAGES = json.meta.untrackedStages || [];
+    const allTicketCount = Object.values(STREAMS_DATA).reduce((s,v)=>s+v.tickets.length,0);
+    const streamCount = Object.keys(STREAMS_DATA).length;
+    const streamWord = streamCount === 1 ? 'stream' : `${streamCount} streams`;
+    if(json.meta.programName){
+      document.title = json.meta.programName + ' Program Delivery Intelligence';
+      const eyebrow = document.querySelector('.eyebrow');
+      if(eyebrow && eyebrow.firstChild) eyebrow.firstChild.textContent = json.meta.programName + ' \u00b7 Program Delivery Intelligence ';
+    }
+    document.getElementById('dataStamp').textContent = `Data as of ${new Date(json.meta.dataPulledAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}`;
+    document.getElementById('perfNote').innerHTML = `<strong style="color:var(--ink-2);">Compute time:</strong> this changelog reconstruction took <code>${(json.meta.computeMs/1000).toFixed(1)}s</code> server-side for ${allTicketCount} tickets across ${streamWord}. This is Phase 1 — Jira-only. PR review, CMR, and deployment analytics need GitHub/Bitbucket, your CMR tool, and CI/CD access respectively, none of which are connected yet.`;
+    statusEl.textContent = 'Live'; statusEl.className = 'live-pill live';
+    document.getElementById('controlsRow').style.display = 'flex';
+
+    render();
+  } catch(e) {
+    console.error('Delivery intelligence fetch failed.', e);
+    statusEl.textContent = 'Failed to load'; statusEl.className = 'live-pill offline';
+    document.getElementById('loadingState').innerHTML = `<div style="color:var(--red);">Couldn't load delivery data: ${e.message}<br><br>If this is a timeout, the changelog pull for all tickets may exceed the serverless function's time limit on the Hobby plan — let's discuss scoping this down.</div>`;
+  }
+
+  if(refreshBtn){ refreshBtn.disabled = false; refreshBtn.innerHTML = '↻ Refresh'; }
+}
+
+// Attached once, outside boot(), so refreshing repeatedly never stacks duplicate listeners.
+document.getElementById('scopeToggle').addEventListener('click', (e) => {
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#scopeToggle button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  scope = e.target.dataset.scope;
+  render();
+});
+document.getElementById('sprintSelect').addEventListener('change', (e) => {
+  sprintFilter = e.target.value;
+  if(sprintFilter !== 'ALL' && sprintFilter !== 'NONE'){
+    scope = 'all';
+    document.querySelectorAll('#scopeToggle button').forEach(b => b.classList.toggle('active', b.dataset.scope === 'all'));
+  }
+  render();
+});
+boot();
+</script>
+</body>
+</html>
