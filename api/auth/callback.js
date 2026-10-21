@@ -10,8 +10,9 @@ module.exports = async (req, res) => {
     return res.status(400).send('Login failed: invalid or expired state. Please try logging in again.');
   }
 
-  const clientId = process.env.ATLASSIAN_CLIENT_ID;
-  const clientSecret = process.env.ATLASSIAN_CLIENT_SECRET;
+  const clientId = (process.env.ATLASSIAN_CLIENT_ID || "").trim();
+  const clientSecret = (process.env.ATLASSIAN_CLIENT_SECRET || "").trim();
+  console.log("[auth-debug]", JSON.stringify({ idLen: clientId.length, idStart: clientId.slice(0, 4), secretLen: clientSecret.length, rawSecretLen: (process.env.ATLASSIAN_CLIENT_SECRET || "").length, secretStart: clientSecret.slice(0, 4), secretEnd: clientSecret.slice(-2), redirectUri: (process.env.PUBLIC_URL || "") + "/api/auth/callback" }));
   const publicUrl = process.env.PUBLIC_URL;
   const sessionSecret = process.env.SESSION_SECRET;
   const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN; // e.g. "zeta.tech" — leave unset to allow any Atlassian account
