@@ -1,6 +1,7 @@
 const { searchAll, deriveTicketFields } = require('../lib/jira');
 const { getSession } = require('../lib/session');
 const { getProgram } = require('../lib/programs');
+const { getSaasData } = require('../lib/saas');
 
 // Shared field list works for both stories and epics — deriveTicketFields()
 // already checks two candidate fields for Dev ETA and two for QA ETA, which
@@ -26,9 +27,23 @@ module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  const isSaas = req.query && req.query.view === 'saas';
   const session = getSession(req);
   if (!session) {
-    return res.status(401).json({ error: 'Not signed in.', loginUrl: '/api/auth/login?returnTo=/hygiene.html' });
+    const returnTo = isSaas ? '/saas.html' : '/hygiene.html';
+    return res.status(401).json({ error: 'Not signed in.', loginUrl: '/api/auth/login?returnTo=' + returnTo });
+  }
+
+  // SaaS Bugs & Stories (SPB / SPI) is served from this same function as
+  // /api/hygiene?view=saas. The Hobby plan caps the project at 12
+  // serverless functions and api/ already has exactly 12.
+  if (isSaas) {
+    try {
+      return res.status(200).json(await getSaasData());
+    } catch (err) {
+      console.error('[saas]', err.message);
+      return res.status(err.status === 401 || err.status === 403 ? 502 : 500).json({ error: err.message });
+    }
   }
 
   try {

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SaaS bugs and stories</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#f6f6fb; --card:#ffffff; --border:#e5e3ee; --border-strong:#d1cee0;
+    --text:#1c1a2e; --text-2:#5c5875; --text-3:#948fac;
+    --red:#c0392b; --red-bg:#fceceb; --amber:#b8790f; --amber-bg:#fbf1de;
+    --green:#1c7a4d; --green-bg:#e8f5ee; --blue:#1a56a8; --blue-bg:#e9f1fb;
+    --mono:'SF Mono','Consolas',monospace;
+    /* chart series: validated categorical slots 1-4 (light surface) */
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px 64px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+  .eyebrow{font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);font-weight:600;margin:0 0 4px;}
+  h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-0.01em;}
+  .sub{font-size:13px;color:var(--text-2);margin:6px 0 0;}
+  .stamp{font-size:11px;color:var(--text-3);margin-top:4px;font-family:var(--mono);}
+  .actions{display:flex;align-items:center;gap:10px;}
+  .live-pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--bg);color:var(--text-3);border:1px solid var(--border);}
+  .live-pill.live{background:var(--green-bg);color:var(--green);border-color:transparent;}
+  .live-pill.offline{background:var(--red-bg);color:var(--red);border-color:transparent;}
+  .refresh-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);background:#fff;color:var(--text);font-size:13px;font-weight:500;padding:7px 14px;border-radius:8px;cursor:pointer;}
+  .refresh-btn:hover{background:#f0f1f3;}
+  .refresh-btn:disabled{opacity:.55;cursor:default;}
+  .refresh-btn svg{width:14px;height:14px;}
+
+  .tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
+  .tab{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-2);}
+  .tab.active{background:var(--text);color:#fff;border-color:var(--text);}
+  .tab .n{font-family:var(--mono);margin-left:6px;opacity:.75;}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:18px;}
+  .panel h2{font-size:14px;font-weight:600;margin:0 0 4px;}
+  .panel .hint{font-size:12px;color:var(--text-3);margin:0 0 14px;}
+
+  .zones{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
+  @media (max-width:760px){ .zones{grid-template-columns:1fr;} }
+  .zone-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;}
+  .zone-head h2{margin:0;}
+  .zone-head .note{font-size:11.5px;color:var(--text-3);}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .tile{border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;background:#fff;transition:border-color .1s;text-align:left;font:inherit;color:inherit;}
+  .tile:hover{border-color:var(--border-strong);}
+  .tile.active{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text);}
+  .tile .lbl{font-size:12px;color:var(--text-2);font-weight:500;}
+  .tile .val{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px;}
+  .tile .delta{font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px;}
+  .tile .delta.up{color:var(--red);} .tile .delta.down{color:var(--green);}
+
+  .chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .toggle{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;background:#fff;}
+  .toggle button{border:none;background:transparent;padding:6px 12px;font-size:12.5px;font-weight:500;color:var(--text-2);cursor:pointer;}
+  .toggle button.active{background:var(--text);color:#fff;}
+  .chart-box{position:relative;height:260px;}
+  .empty-chart{height:120px;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:13px;border:1px dashed var(--border-strong);border-radius:10px;}
+
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .filters .lbl{font-size:12px;color:var(--text-3);}
+  input.search{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;min-width:220px;}
+
+  .tbl-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-size:11.5px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  td{padding:9px 10px;border-bottom:1px solid #f0eef6;vertical-align:top;}
+  tr:hover td{background:#faf9fd;}
+  td a{color:var(--blue);text-decoration:none;font-family:var(--mono);font-size:12.5px;white-space:nowrap;}
+  td a:hover{text-decoration:underline;}
+  .sum{max-width:420px;}
+  .muted{color:var(--text-3);}
+  .pri{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;font-family:var(--mono);}
+  .pri.P1{background:var(--red-bg);color:var(--red);}
+  .pri.P2{background:var(--amber-bg);color:var(--amber);}
+  .pri.other{background:var(--bg);color:var(--text-2);}
+  .chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:5px;background:var(--bg);color:var(--text-2);white-space:nowrap;}
+  .age-hot{color:var(--red);font-weight:600;}
+  .empty-row td{text-align:center;color:var(--text-3);padding:28px;}
+
+  details.method{font-size:12.5px;color:var(--text-2);}
+  details.method summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details.method pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:11.5px;color:var(--text);}
+  details.method li{margin:4px 0;}
+
+  .error-box{background:var(--red-bg);color:var(--red);border-radius:10px;padding:14px 16px;font-size:13px;margin-bottom:18px;display:none;}
+  .loading{position:fixed;inset:0;background:rgba(246,246,251,.82);display:none;align-items:center;justify-content:center;z-index:50;flex-direction:column;gap:12px;font-size:13px;color:var(--text-2);}
+  .loading.show{display:flex;}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="loading show" id="loading"><span class="spin"></span><span id="loadingText">Loading SaaS bugs and stories from Jira…</span></div>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">SaaS · HDFC</p>
+      <h1>SaaS Bugs &amp; Stories</h1>
+      <p class="sub">Open HDFC Prod Bugs (SPB) by zone and priority, plus product stories (SPI).</p>
+      <div class="stamp" id="stamp">—</div>
+    </div>
+    <div class="actions">
+      <span class="live-pill" id="livePill">Loading</span>
+      <button class="refresh-btn" id="refreshBtn" onclick="load(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg> Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-view="bugs">Bugs (SPB)<span class="n" id="nBugs"></span></button>
+    <button class="tab" data-view="stories">Product stories (SPI)<span class="n" id="nStories"></span></button>
+  </div>
+
+  <!-- ===== BUGS ===== -->
+  <section id="viewBugs">
+    <div class="zones">
+      <div class="panel" style="margin:0">
+        <div class="zone-head"><h2>Prod</h2><span class="note">Zone = HDFC PROD</span></div>
+        <div class="tiles" id="tilesProd"></div>
+      </div>
+      <div class="panel" style="margin:0">
+        <div class="zone-head"><h2>UAT</h2><span class="note">Zone = HDFC UAT or not set</span></div>
+        <div class="tiles" id="tilesUat"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-head">
+        <div>
+          <h2>Open P1/P2 bugs over time</h2>
+          <p class="hint" style="margin:0">One snapshot per day; a same-day refresh overwrites that day.</p>
+        </div>
+        <div class="toggle" id="trendToggle">
+          <button class="active" data-mode="chart">Chart</button>
+          <button data-mode="table">Table</button>
+        </div>
+      </div>
+      <div id="trendChartWrap"><div class="chart-box"><canvas id="trendChart"></canvas></div></div>
+      <div id="trendTableWrap" class="tbl-wrap hidden"></div>
+    </div>
+
+    <div class="panel">
+      <h2 id="bugTableTitle">All open P1/P2 bugs</h2>
+      <p class="hint">Click a tile above to filter. Age = days since created; Idle = days since last update.</p>
+      <div class="filters">
+        <input class="search" id="bugSearch" placeholder="Search key, summary, assignee, module…">
+        <button class="refresh-btn" id="clearBugFilter" style="display:none" onclick="setBugFilter(null,null)">Clear filter</button>
+      </div>
+      <div class="tbl-wrap"><table id="bugTable"></table></div>
+    </div>
+
+    <div class="panel">
+      <details class="method" id="method">
+        <summary>How these numbers are counted</summary>
+        <div id="methodBody"></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== STORIES ===== -->
+  <section id="viewStories" class="hidden">
+    <div class="panel">
+      <h2>Product stories by status</h2>
+      <p class="hint" id="storyJqlHint"></p>
+      <div class="tiles" id="storyTiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+    </div>
+    <div class="panel">
+      <h2 id="storyTableTitle">All open stories</h2>
+      <div class="filters">
+        <input class="search" id="storySearch" placeholder="Search key, summary, assignee…">
+        <button class="refresh-btn" id="clearStoryFilter" style="display:none" onclick="setStoryStatus(null)">Clear filter</button>
+      </div>
+      <div class="tbl-wrap"><table id="storyTable"></table></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const API = '/api/hygiene?view=saas';
+let DATA = null;
+let bugZone = null, bugPri = null;        // tile filter
+let storyStatus = null;
+let bugSort = { key: 'priority', dir: 1 };
+let storySort = { key: 'idleDays', dir: -1 };
+let trendChart = null;
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime = iso => new Date(iso).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' });
+
+function showLoginGate(){
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#fff;border:1px solid #e4e6ec;border-radius:14px;padding:36px 40px;max-width:380px;text-align:center;">
+        <p style="font-family:'SF Mono','Consolas',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9498a5;margin:0 0 10px;">Governance Dashboard</p>
+        <h1 style="font-size:19px;font-weight:700;margin:0 0 10px;color:#14151c;">Sign in to view SaaS bugs</h1>
+        <button onclick="window.top.location.href='/api/auth/login?returnTo=/saas.html'" style="width:100%;padding:11px;border-radius:8px;border:none;background:#1a56a8;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;">Log in with Atlassian</button>
+      </div>
+    </div>`;
+}
+
+async function load(){
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  document.getElementById('loading').classList.add('show');
+  const errBox = document.getElementById('errorBox');
+  errBox.style.display = 'none';
+  try{
+    const res = await fetch(API, { cache:'no-store', credentials:'include' });
+    if(res.status === 401){ showLoginGate(); return; }
+    const json = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(json.error || ('Server responded ' + res.status));
+    DATA = json;
+    const pill = document.getElementById('livePill');
+    pill.textContent = 'Live'; pill.className = 'live-pill live';
+    document.getElementById('stamp').textContent = 'Pulled ' + fmtTime(json.meta.dataPulledAt) + ' · ' + json.meta.site.replace('https://','');
+    render();
+  }catch(e){
+    const pill = document.getElementById('livePill');
+    pill.textContent = 'Data unavailable'; pill.className = 'live-pill offline';
+    errBox.textContent = 'Could not load SaaS Jira data: ' + e.message;
+    errBox.style.display = 'block';
+  }finally{
+    btn.disabled = false;
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+/* ---------- BUGS ---------- */
+function previousDay(){
+  const h = (DATA.history || []);
+  return h.length >= 2 ? h[h.length - 2] : null;
+}
+function deltaHtml(now, before){
+  if(before == null) return '<div class="delta">no prior day</div>';
+  const d = now - before;
+  if(d === 0) return '<div class="delta">same as ' + esc(previousDay().date.slice(5)) + '</div>';
+  return `<div class="delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ '}${d} vs ${esc(previousDay().date.slice(5))}</div>`;
+}
+function renderTiles(){
+  const prev = previousDay();
+  const mk = (zone, z) => {
+    const p = zone === 'prod' ? 'prod' : 'uat';
+    const before = prev ? { P1: prev[p+'P1'], P2: prev[p+'P2'], all: prev[p+'P1'] + prev[p+'P2'] } : {};
+    return [['P1', z.p1], ['P2', z.p2], ['all', z.all]].map(([k, v]) => `
+      <button class="tile ${bugZone === zone && bugPri === k ? 'active' : ''}" onclick="setBugFilter('${zone}','${k}')">
+        <div class="lbl">${k === 'all' ? 'All (P1 + P2)' : k}</div>
+        <div class="val">${v}</div>
+        ${deltaHtml(v, prev ? before[k] : null)}
+      </button>`).join('');
+  };
+  document.getElementById('tilesProd').innerHTML = mk('prod', DATA.bugs.prod);
+  document.getElementById('tilesUat').innerHTML = mk('uat', DATA.bugs.uat);
+}
+
+function setBugFilter(zone, pri){
+  if(zone && bugZone === zone && bugPri === pri){ zone = null; pri = null; }
+  bugZone = zone; bugPri = pri;
+  document.getElementById('clearBugFilter').style.display = zone ? '' : 'none';
+  renderTiles(); renderBugTable();
+}
+
+function allBugs(){
+  return [
+    ...DATA.bugs.prod.bugs.map(b => ({ ...b, _zone:'prod' })),
+    ...DATA.bugs.uat.bugs.map(b => ({ ...b, _zone:'uat' })),
+  ];
+}
+
+const sorters = {
+  priority: (a,b) => (a.priority||'').localeCompare(b.priority||'') || (b.ageDays||0) - (a.ageDays||0),
+};
+function sortRows(rows, s){
+  const f = sorters[s.key] || ((a,b) => {
+    const x = a[s.key], y = b[s.key];
+    if(typeof x === 'number' || typeof y === 'number') return (x ?? -1) - (y ?? -1);
+    return String(x || '').localeCompare(String(y || ''));
+  });
+  return rows.slice().sort((a,b) => f(a,b) * s.dir);
+}
+function headerRow(cols, sort, onSortName){
+  return '<tr>' + cols.map(c => `<th class="${c.num ? 'num' : ''}" onclick="${onSortName}('${c.key}')">${c.label}${sort.key === c.key ? (sort.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + '</tr>';
+}
+function sortBugs(key){ bugSort = { key, dir: bugSort.key === key ? -bugSort.dir : (key === 'ageDays' || key === 'idleDays' ? -1 : 1) }; renderBugTable(); }
+function sortStories(key){ storySort = { key, dir: storySort.key === key ? -storySort.dir : (key === 'ageDays' || key === 'idleDays' ? -1 : 1) }; renderStoryTable(); }
+
+const BUG_COLS = [
+  { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'priority', label:'Pri' },
+  { key:'_zone', label:'Zone' }, { key:'status', label:'Status' }, { key:'assignee', label:'Assignee' },
+  { key:'module', label:'Product / Module' }, { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
+];
+
+function renderBugTable(){
+  const qText = document.getElementById('bugSearch').value.trim().toLowerCase();
+  let rows = allBugs();
+  if(bugZone) rows = rows.filter(b => b._zone === bugZone);
+  if(bugPri && bugPri !== 'all') rows = rows.filter(b => b.priority === bugPri);
+  if(qText) rows = rows.filter(b => [b.key, b.summary, b.assignee, b.module, b.product, b.status].join(' ').toLowerCase().includes(qText));
+  rows = sortRows(rows, bugSort);
+
+  const zoneName = { prod:'Prod', uat:'UAT' };
+  document.getElementById('bugTableTitle').textContent =
+    (bugZone ? zoneName[bugZone] + ' · ' + (bugPri === 'all' ? 'P1 + P2' : bugPri) : 'All open P1/P2 bugs') + ' (' + rows.length + ')';
+
+  const body = rows.map(b => `<tr>
+      <td><a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.key)}</a></td>
+      <td class="sum">${esc(b.summary)}</td>
+      <td><span class="pri ${esc(b.priority)}">${esc(b.priority)}</span></td>
+      <td><span class="chip">${zoneName[b._zone]}${b._zone === 'uat' && !b.zone ? ' (unset)' : ''}</span></td>
+      <td>${esc(b.status)}</td>
+      <td>${b.assignee === 'Unassigned' ? '<span class="muted">Unassigned</span>' : esc(b.assignee)}</td>
+      <td>${esc(b.product || '')}${b.module ? '<div class="muted" style="font-size:12px">' + esc(b.module) + '</div>' : ''}</td>
+      <td class="num ${b.ageDays > 30 ? 'age-hot' : ''}">${b.ageDays ?? '—'}</td>
+      <td class="num ${b.idleDays > 7 ? 'age-hot' : ''}">${b.idleDays ?? '—'}</td>
+    </tr>`).join('');
+  document.getElementById('bugTable').innerHTML = headerRow(BUG_COLS, bugSort, 'sortBugs') +
+    (body || `<tr class="empty-row"><td colspan="${BUG_COLS.length}">No bugs match.</td></tr>`);
+}
+
+function renderTrend(){
+  const h = DATA.history || [];
+  const labels = h.map(r => r.date.slice(5));
+  const css = getComputedStyle(document.documentElement);
+  const series = [
+    { label:'Prod P1', key:'prodP1', color: css.getPropertyValue('--s1').trim(), dash: [] },
+    { label:'Prod P2', key:'prodP2', color: css.getPropertyValue('--s2').trim(), dash: [] },
+    { label:'UAT P1',  key:'uatP1',  color: css.getPropertyValue('--s3').trim(), dash: [6,4] },
+    { label:'UAT P2',  key:'uatP2',  color: css.getPropertyValue('--s4').trim(), dash: [6,4] },
+  ];
+  // table view (also the accessible fallback for low-contrast series colors)
+  document.getElementById('trendTableWrap').innerHTML = '<table><tr><th>Date</th>' +
+    series.map(s => `<th class="num">${s.label}</th>`).join('') + '<th class="num">Prod all</th><th class="num">UAT all</th></tr>' +
+    h.slice().reverse().map(r => `<tr><td>${esc(r.date)}</td>${series.map(s => `<td class="num">${r[s.key]}</td>`).join('')}<td class="num">${r.prodP1 + r.prodP2}</td><td class="num">${r.uatP1 + r.uatP2}</td></tr>`).join('') + '</table>';
+
+  const wrap = document.getElementById('trendChartWrap');
+  if(h.length < 2){
+    wrap.innerHTML = '<div class="empty-chart">The trend starts building today. Come back tomorrow for a second data point.</div>';
+    return;
+  }
+  if(!wrap.querySelector('canvas')) wrap.innerHTML = '<div class="chart-box"><canvas id="trendChart"></canvas></div>';
+  if(trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels, datasets: series.map(s => ({
+      label: s.label, data: h.map(r => r[s.key]), borderColor: s.color, backgroundColor: s.color,
+      borderWidth: 2, borderDash: s.dash, pointRadius: h.length > 30 ? 0 : 4, pointHoverRadius: 5,
+      pointBorderColor: '#fff', pointBorderWidth: 2, tension: 0,
+    })) },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, color: '#5c5875', font: { size: 12 } } },
+        tooltip: { backgroundColor: '#1c1a2e', padding: 10, titleFont: { size: 12 }, bodyFont: { size: 12 } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#948fac', font: { size: 11 }, maxRotation: 0, autoSkip: true } },
+        y: { beginAtZero: true, grid: { color: '#f0eef6' }, border: { display: false }, ticks: { color: '#948fac', font: { size: 11 }, precision: 0 } },
+      },
+    },
+  });
+}
+
+function renderMethod(){
+  const m = DATA.meta;
+  const ex = (DATA.bugs.prod.excluded || 0) + (DATA.bugs.uat.excluded || 0);
+  const missingFields = Object.entries(m.fieldsResolved).filter(([k,v]) => !v && k !== 'client').map(([k]) => k);
+  document.getElementById('methodBody').innerHTML = `
+    <p>Base query, shared by both zones:</p>
+    <pre>${esc(m.jql.bugBase)}</pre>
+    <ul>
+      <li><b>Prod</b> adds <code>${esc(m.jql.prodZone)}</code>; <b>UAT</b> adds <code>${esc(m.jql.uatZone)}</code>. A bug with no Zone set counts as UAT.</li>
+      <li>Only priority exactly <b>P1</b> or <b>P2</b> is counted.${ex ? ` <b>${ex}</b> bug(s) matched the query but had another or blank priority and were dropped.` : ''}</li>
+      <li>Only open bugs (status category not Done), so these are a live backlog, not a cumulative total.</li>
+      <li>Excluded Tachyon Credit modules: ${m.excludedModules.map(esc).join(', ')}.</li>
+      ${missingFields.length ? `<li style="color:var(--red)">Could not find these fields on the SaaS site, so their columns are blank: ${missingFields.join(', ')}.</li>` : ''}
+      ${m.historySaved ? '' : '<li style="color:var(--red)">Today\'s counts could not be saved to history (Blob store unavailable).</li>'}
+    </ul>
+    <p>Stories (SPI) query:</p>
+    <pre>${esc(m.jql.stories)}</pre>`;
+}
+
+/* ---------- STORIES ---------- */
+const STORY_COLS = [
+  { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'status', label:'Status' },
+  { key:'priority', label:'Pri' }, { key:'assignee', label:'Assignee' },
+  { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
+];
+function setStoryStatus(s){
+  storyStatus = storyStatus === s ? null : s;
+  document.getElementById('clearStoryFilter').style.display = storyStatus ? '' : 'none';
+  renderStoryTiles(); renderStoryTable();
+}
+function renderStoryTiles(){
+  const counts = {};
+  DATA.stories.forEach(s => { counts[s.status || '—'] = (counts[s.status || '—'] || 0) + 1; });
+  const entries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  document.getElementById('storyTiles').innerHTML = entries.length
+    ? entries.map(([st, n]) => `<button class="tile ${storyStatus === st ? 'active' : ''}" onclick='setStoryStatus(${JSON.stringify(st)})'><div class="lbl">${esc(st)}</div><div class="val">${n}</div></button>`).join('')
+    : '<div class="muted" style="font-size:13px">No open stories match the SPI query.</div>';
+  document.getElementById('storyJqlHint').textContent = DATA.stories.length + ' open · click a status to filter';
+}
+function renderStoryTable(){
+  const qText = document.getElementById('storySearch').value.trim().toLowerCase();
+  let rows = DATA.stories;
+  if(storyStatus) rows = rows.filter(s => (s.status || '—') === storyStatus);
+  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status].join(' ').toLowerCase().includes(qText));
+  rows = sortRows(rows, storySort);
+  document.getElementById('storyTableTitle').textContent = (storyStatus || 'All open stories') + ' (' + rows.length + ')';
+  const body = rows.map(s => `<tr>
+      <td><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.key)}</a></td>
+      <td class="sum">${esc(s.summary)}</td>
+      <td>${esc(s.status)}</td>
+      <td>${s.priority ? `<span class="pri ${/^P[12]$/.test(s.priority) ? esc(s.priority) : 'other'}">${esc(s.priority)}</span>` : '<span class="muted">—</span>'}</td>
+      <td>${s.assignee === 'Unassigned' ? '<span class="muted">Unassigned</span>' : esc(s.assignee)}</td>
+      <td class="num">${s.ageDays ?? '—'}</td>
+      <td class="num ${s.idleDays > 14 ? 'age-hot' : ''}">${s.idleDays ?? '—'}</td>
+    </tr>`).join('');
+  document.getElementById('storyTable').innerHTML = headerRow(STORY_COLS, storySort, 'sortStories') +
+    (body || `<tr class="empty-row"><td colspan="${STORY_COLS.length}">No stories match.</td></tr>`);
+}
+
+function render(){
+  document.getElementById('nBugs').textContent = DATA.bugs.prod.all + DATA.bugs.uat.all;
+  document.getElementById('nStories').textContent = DATA.stories.length;
+  renderTiles(); renderTrend(); renderBugTable(); renderMethod();
+  renderStoryTiles(); renderStoryTable();
+}
+
+/* ---------- wiring ---------- */
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  document.getElementById('viewBugs').classList.toggle('hidden', t.dataset.view !== 'bugs');
+  document.getElementById('viewStories').classList.toggle('hidden', t.dataset.view !== 'stories');
+}));
+document.querySelectorAll('#trendToggle button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#trendToggle button').forEach(x => x.classList.toggle('active', x === b));
+  document.getElementById('trendChartWrap').classList.toggle('hidden', b.dataset.mode !== 'chart');
+  document.getElementById('trendTableWrap').classList.toggle('hidden', b.dataset.mode !== 'table');
+}));
+document.getElementById('bugSearch').addEventListener('input', () => DATA && renderBugTable());
+document.getElementById('storySearch').addEventListener('input', () => DATA && renderStoryTable());
+
+load();
+</script>
+</body>
+</html>

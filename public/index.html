@@ -370,6 +370,9 @@ function buildDashboardsFor(programId) {
     { id: 'sprint-health', name: 'Sprint Health', path: `/sprint-health.html?program=${programId}`, connected: true, apiUrl: `/api/sprint-health?program=${programId}` },
     { id: 'engineering-delivery', name: 'Program Delivery Intelligence', path: `/engineering_delivery_dashboard.html?program=${programId}`, connected: true, apiUrl: `/api/delivery-intelligence?program=${programId}` },
     { id: 'hygiene', name: 'Hygiene', path: `/hygiene.html?program=${programId}`, connected: true, apiUrl: `/api/hygiene?program=${programId}` },
+    // SPB / SPI live on the SaaS Jira site and are filtered by Client = HDFC,
+    // not by a program's labels, so this tab belongs to EON only.
+    ...(programId === 'eon' ? [SAAS_DASHBOARD] : []),
   ];
 }
 
