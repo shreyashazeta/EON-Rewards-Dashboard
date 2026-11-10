@@ -7,7 +7,18 @@
 // the shell will show an honest "not connected" placeholder instead of
 // silently rendering nothing or fabricating data.
 
-const SAAS_DASHBOARD = { id: 'saas', name: 'SaaS Bugs & Stories', path: '/saas.html', connected: true, apiUrl: '/api/hygiene?view=saas' };
+// TCP is a fixed program with a single dashboard: HDFC SaaS bugs (SPB) and
+// product stories (SPI). It is not in the Blob program registry because it
+// has no Jira project/board/labels, so the four standard dashboards don't
+// apply to it. The id "tcp" is reserved in lib/programs.js.
+const TCP_PROGRAM = {
+  id: 'tcp',
+  name: 'TCP',
+  quarter: '',
+  dashboards: [
+    { id: 'saas', name: 'SaaS Bugs & Stories', path: '/saas.html', connected: true, apiUrl: '/api/hygiene?view=saas' },
+  ],
+};
 
 const GOVERNANCE_CONFIG = {
   programs: [
@@ -20,7 +31,6 @@ const GOVERNANCE_CONFIG = {
         { id: 'sprint-health', name: 'Sprint Health', path: '/sprint-health.html', connected: true, apiUrl: '/api/sprint-health' },
         { id: 'engineering-delivery', name: 'Program Delivery Intelligence', path: '/engineering_delivery_dashboard.html', connected: true, apiUrl: '/api/delivery-intelligence' },
         { id: 'hygiene', name: 'Hygiene', path: '/hygiene.html', connected: true, apiUrl: '/api/hygiene' },
-        SAAS_DASHBOARD,
       ],
     },
     {
@@ -34,6 +44,7 @@ const GOVERNANCE_CONFIG = {
         { id: 'hygiene', name: 'Hygiene', path: null, connected: false, apiUrl: null },
       ],
     },
+    TCP_PROGRAM,
   ],
 };
 
