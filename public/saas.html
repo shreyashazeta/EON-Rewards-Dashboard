@@ -113,6 +113,12 @@
   .drawer .d-meta{font-size:12.5px;color:var(--text-2);margin:2px 0 16px;}
   .drawer .d-effort{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;}
   .drawer .d-effort .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);font-weight:600;}
+  .drawer .d-row{display:flex;gap:12px;margin-bottom:18px;align-items:stretch;}
+  .drawer .d-row .d-effort{margin-bottom:0;flex:1 1 auto;min-width:0;}
+  .drawer .d-row .d-tc{flex:0 0 200px;}
+  .drawer .d-tc .val{font-size:20px;}
+  .drawer .d-tc .rm-meta{font-size:12px;color:var(--text-3);margin-top:4px;line-height:1.4;}
+  @media (max-width:560px){ .drawer .d-row{flex-direction:column;} .drawer .d-row .d-tc{flex-basis:auto;} }
   .drawer .d-effort .val{font-size:26px;font-weight:700;margin-top:2px;}
   .drawer h3{font-size:13px;margin:16px 0 6px;font-weight:600;}
   .drawer h3 .n{font-weight:500;color:var(--text-3);}
@@ -285,7 +291,7 @@ function decorate(){
     t.devSort = t.devForecast.current || '';
     t.uatSort = t.uatCommit.current || '';
     t.remarkText = t.remark ? t.remark.text : '';
-    t.tcSort = t.testCases ? (t.testCases.created ? 'Yes' : 'No') : '';
+    t.tcSort = t.testCases ? (t.testCases.created ? 'Completed' : 'Pending') : '';
   });
 }
 const fmtDate = iso => {
@@ -327,17 +333,17 @@ function sheetLink(tc){
 function testCaseCell(t){
   const tc = t.testCases;
   if(!tc) return '<span class="muted" title="Comments were not returned by Jira">—</span>';
-  if(tc.created) return '<span style="color:var(--green);font-weight:600">Yes</span>' + sheetLink(tc);
-  return '<span style="color:var(--red);font-weight:600">No</span><div class="rm-meta">' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ', no sheet' +
+  if(tc.created) return '<span style="color:var(--green);font-weight:600">Completed</span>' + sheetLink(tc);
+  return '<span style="color:var(--amber);font-weight:600">Pending</span><div class="rm-meta">' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ', no sheet' +
     (tc.partial ? ' (thread not fully read)' : '') + '</div>';
 }
 function testCaseBox(t){
   const tc = t.testCases;
   let body;
-  if(!tc) body = '<span class="muted">Comments were not returned by Jira.</span>';
-  else if(tc.created) body = '<div class="val" style="color:var(--green)">Yes</div>' + sheetLink(tc) + (tc.sheets > 1 ? '<div class="d-note">' + tc.sheets + ' comments carry a sheet; the latest is shown.</div>' : '');
-  else body = '<div class="val" style="color:var(--red)">No</div><div class="d-note">No comment on this ticket has a spreadsheet link or attachment (' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ' checked).</div>';
-  return '<div class="d-effort"><div class="lbl">Test cases · sheet in QA comment</div>' + body + '</div>';
+  if(!tc) body = '<div class="val muted">—</div><div class="d-note">Comments not returned by Jira.</div>';
+  else if(tc.created) body = '<div class="val" style="color:var(--green)">Completed</div>' + sheetLink(tc) + (tc.sheets > 1 ? '<div class="d-note">' + tc.sheets + ' sheets posted; latest shown.</div>' : '');
+  else body = '<div class="val" style="color:var(--amber)">Pending</div><div class="d-note">No sheet in the ' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ' on this ticket.</div>';
+  return '<div class="d-effort d-tc"><div class="lbl">Test case creation</div>' + body + '</div>';
 }
 function findTicket(key){ return allTickets().find(t => t.key === key); }
 function openRemarkEditor(key){
@@ -414,8 +420,8 @@ function storyDetailHtml(t){
     '<div class="d-key"><a href="' + esc(t.url) + '" target="_blank" rel="noopener">' + esc(t.key) + '</a></div>' +
     '<h2>' + esc(t.summary) + '</h2>' +
     '<div class="d-meta">' + esc(t.status || '') + (t.assignee ? ' · ' + esc(t.assignee) : '') + '</div>' +
-    '<div class="d-effort"><div class="lbl">Effort estimate · High-Level Effort Estimate (Story Points)</div>' + effortHtml(t) + '</div>' +
-    testCaseBox(t) +
+    '<div class="d-row"><div class="d-effort"><div class="lbl">Effort estimate · High-Level Effort Estimate (Story Points)</div>' + effortHtml(t) + '</div>' +
+    testCaseBox(t) + '</div>' +
     bugs;
 }
 function closeDrawer(){ const e = document.getElementById('drawerBg'); if(e) e.remove(); }
@@ -598,7 +604,7 @@ const STORY_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'status', label:'Status' },
   { key:'priority', label:'Pri' }, { key:'assignee', label:'Assignee' },
   { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
-  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'tcSort', label:'Test cases' }, { key:'remarkText', label:'Risk remark' },
+  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'tcSort', label:'Test case creation' }, { key:'remarkText', label:'Risk remark' },
 ];
 function setStoryStatus(s){
   storyStatus = storyStatus === s ? null : s;
@@ -613,7 +619,7 @@ function renderStoryTiles(){
     ? entries.map(([st, n]) => `<button class="tile ${storyStatus === st ? 'active' : ''}" onclick='setStoryStatus(${JSON.stringify(st)})'><div class="lbl">${esc(st)}</div><div class="val">${n}</div></button>`).join('')
     : '<div class="muted" style="font-size:13px">No open stories match the SPI query.</div>';
   const withTc = DATA.stories.filter(s => s.testCases && s.testCases.created).length;
-  document.getElementById('storyJqlHint').textContent = DATA.stories.length + ' open · ' + withTc + ' with a test case sheet · click a status to filter';
+  document.getElementById('storyJqlHint').textContent = DATA.stories.length + ' open · ' + withTc + ' with test cases completed · click a status to filter';
 }
 function renderStoryTable(){
   const qText = document.getElementById('storySearch').value.trim().toLowerCase();
