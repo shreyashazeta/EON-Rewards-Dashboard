@@ -97,13 +97,11 @@
   .hidden{display:none !important;}
 
   /* date-change history + risk remarks */
-  details.dc{font-size:12.5px;min-width:150px;}
-  details.dc summary{cursor:pointer;color:var(--text-2);white-space:nowrap;}
-  details.dc summary.slip{color:var(--amber);font-weight:600;}
-  details.dc ul{margin:6px 0 0;padding-left:16px;color:var(--text-2);}
-  details.dc li{margin:3px 0;}
-  details.dc .up{color:var(--red);font-weight:600;}
-  details.dc .down{color:var(--green);font-weight:600;}
+  .dt{min-width:96px;font-size:12.5px;}
+  .dt-cur{font-weight:600;color:var(--text);}
+  .dt-cur.later{color:var(--red);}
+  .dt-cur.earlier{color:var(--green);}
+  .dt-old{color:var(--text-3);font-size:11.5px;line-height:1.35;}
   .rm{min-width:200px;max-width:280px;font-size:12.5px;}
   .rm .rm-text{white-space:pre-wrap;word-break:break-word;}
   .rm .rm-meta{font-size:11px;color:var(--text-3);margin-top:2px;}
@@ -262,27 +260,36 @@ function allTickets(){
   return [...DATA.bugs.prod.bugs, ...DATA.bugs.uat.bugs, ...DATA.stories];
 }
 function decorate(){
+  const blank = { current:null, previous:[], changes:[], partial:false };
   allTickets().forEach(t => {
-    t.dateHistory = t.dateHistory || { changes:[], count:0, slips:0, pushedDays:0, partial:false };
-    t.slipDays = t.dateHistory.pushedDays || 0;
+    t.devForecast = t.devForecast || blank;
+    t.uatCommit = t.uatCommit || blank;
+    t.devSort = t.devForecast.current || '';
+    t.uatSort = t.uatCommit.current || '';
     t.remarkText = t.remark ? t.remark.text : '';
   });
 }
-function dateCell(t){
-  const h = t.dateHistory;
-  const due = t.dueDate ? '<div class="muted" style="font-size:11.5px">Due ' + esc(fmtDay(t.dueDate)) + '</div>' : '';
-  if(!h || !h.count) return '<span class="muted">No date changes</span>' + due;
-  const label = h.slips
-    ? '▲ pushed ' + h.slips + '× (+' + h.pushedDays + 'd)'
-    : h.count + ' date change' + (h.count > 1 ? 's' : '');
-  const items = h.changes.map(c => {
-    const d = c.deltaDays;
-    const delta = d == null ? '' : ' <span class="' + (d > 0 ? 'up' : 'down') + '">(' + (d > 0 ? '+' : '') + d + 'd)</span>';
-    return '<li>' + esc(c.field) + ': ' + esc(c.from || '—') + ' → ' + esc(c.to || 'cleared') + delta +
-      '<div class="muted" style="font-size:11px">' + esc(fmtDay(c.at)) + (c.by ? ' · ' + esc(c.by) : '') + '</div></li>';
-  }).join('');
-  return '<details class="dc"><summary class="' + (h.slips ? 'slip' : '') + '">' + esc(label) + '</summary><ul>' + items + '</ul>' +
-    (h.partial ? '<div class="muted" style="font-size:11px">Only the latest changes are shown.</div>' : '') + '</details>' + due;
+const fmtDate = iso => {
+  if(!iso) return '—';
+  const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+  return isNaN(d) ? esc(iso) : d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'2-digit' });
+};
+// One cell, one row: the current date on top, every earlier date struck through below it.
+function dateCell(d, fieldKey){
+  if(!d) return '<span class="muted">—</span>';
+  if(DATA.meta.fieldsResolved && DATA.meta.fieldsResolved[fieldKey] === null)
+    return '<span class="muted" title="This Jira field was not found on the SaaS site">Field not found</span>';
+  if(!d.current && !d.previous.length) return '<span class="muted">Not set</span>';
+  const last = d.changes.length ? d.changes[d.changes.length - 1] : null;
+  const dir = last && last.deltaDays != null ? (last.deltaDays > 0 ? 'later' : last.deltaDays < 0 ? 'earlier' : '') : '';
+  const tip = d.changes.map(c => (c.from ? fmtDate(c.from) : 'not set') + ' → ' + (c.to ? fmtDate(c.to) : 'cleared') +
+      (c.deltaDays != null ? ' (' + (c.deltaDays > 0 ? '+' : '') + c.deltaDays + 'd)' : '') +
+      ' · ' + fmtDay(c.at) + (c.by ? ' · ' + c.by : '')).join('\n') + (d.partial ? '\n(only the latest changes are listed)' : '');
+  const cur = d.current
+    ? '<div class="dt-cur ' + dir + '">' + esc(fmtDate(d.current)) + '</div>'
+    : '<div class="dt-cur muted">Cleared</div>';
+  const old = d.previous.map(x => '<div class="dt-old"><s>' + esc(fmtDate(x)) + '</s></div>').join('');
+  return '<div class="dt" title="' + esc(tip) + '">' + cur + old + '</div>';
 }
 function remarkCell(t){
   const r = t.remark;
@@ -371,7 +378,6 @@ function allBugs(){
 }
 
 const sorters = {
-  slipDays: (a,b) => (a.slipDays || 0) - (b.slipDays || 0) || ((a.dateHistory && a.dateHistory.count) || 0) - ((b.dateHistory && b.dateHistory.count) || 0),
   priority: (a,b) => (a.priority||'').localeCompare(b.priority||'') || (b.ageDays||0) - (a.ageDays||0),
 };
 function sortRows(rows, s){
@@ -392,7 +398,7 @@ const BUG_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'priority', label:'Pri' },
   { key:'_zone', label:'Zone' }, { key:'status', label:'Status' }, { key:'assignee', label:'Assignee' },
   { key:'module', label:'Product / Module' }, { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
-  { key:'slipDays', label:'Date changes' }, { key:'remarkText', label:'Risk remark' },
+  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'remarkText', label:'Risk remark' },
 ];
 
 function renderBugTable(){
@@ -400,7 +406,7 @@ function renderBugTable(){
   let rows = allBugs();
   if(bugZone) rows = rows.filter(b => b._zone === bugZone);
   if(bugPri && bugPri !== 'all') rows = rows.filter(b => b.priority === bugPri);
-  if(qText) rows = rows.filter(b => [b.key, b.summary, b.assignee, b.module, b.product, b.status, b.remarkText].join(' ').toLowerCase().includes(qText));
+  if(qText) rows = rows.filter(b => [b.key, b.summary, b.assignee, b.module, b.product, b.status, b.devSort, b.uatSort, b.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, bugSort);
 
   const zoneName = { prod:'Prod', uat:'UAT' };
@@ -417,7 +423,8 @@ function renderBugTable(){
       <td>${esc(b.product || '')}${b.module ? '<div class="muted" style="font-size:12px">' + esc(b.module) + '</div>' : ''}</td>
       <td class="num ${b.ageDays > 30 ? 'age-hot' : ''}">${b.ageDays ?? '—'}</td>
       <td class="num ${b.idleDays > 7 ? 'age-hot' : ''}">${b.idleDays ?? '—'}</td>
-      <td>${dateCell(b)}</td>
+      <td>${dateCell(b.devForecast, 'devForecast')}</td>
+      <td>${dateCell(b.uatCommit, 'uatCommit')}</td>
       <td>${remarkCell(b)}</td>
     </tr>`).join('');
   document.getElementById('bugTable').innerHTML = headerRow(BUG_COLS, bugSort, 'sortBugs') +
@@ -492,7 +499,7 @@ const STORY_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'status', label:'Status' },
   { key:'priority', label:'Pri' }, { key:'assignee', label:'Assignee' },
   { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
-  { key:'slipDays', label:'Date changes' }, { key:'remarkText', label:'Risk remark' },
+  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'remarkText', label:'Risk remark' },
 ];
 function setStoryStatus(s){
   storyStatus = storyStatus === s ? null : s;
@@ -512,7 +519,7 @@ function renderStoryTable(){
   const qText = document.getElementById('storySearch').value.trim().toLowerCase();
   let rows = DATA.stories;
   if(storyStatus) rows = rows.filter(s => (s.status || '—') === storyStatus);
-  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.remarkText].join(' ').toLowerCase().includes(qText));
+  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.devSort, s.uatSort, s.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, storySort);
   document.getElementById('storyTableTitle').textContent = (storyStatus || 'All open stories') + ' (' + rows.length + ')';
   const body = rows.map(s => `<tr>
@@ -523,7 +530,8 @@ function renderStoryTable(){
       <td>${s.assignee === 'Unassigned' ? '<span class="muted">Unassigned</span>' : esc(s.assignee)}</td>
       <td class="num">${s.ageDays ?? '—'}</td>
       <td class="num ${s.idleDays > 14 ? 'age-hot' : ''}">${s.idleDays ?? '—'}</td>
-      <td>${dateCell(s)}</td>
+      <td>${dateCell(s.devForecast, 'devForecast')}</td>
+      <td>${dateCell(s.uatCommit, 'uatCommit')}</td>
       <td>${remarkCell(s)}</td>
     </tr>`).join('');
   document.getElementById('storyTable').innerHTML = headerRow(STORY_COLS, storySort, 'sortStories') +
