@@ -102,6 +102,24 @@
   .dt-cur.later{color:var(--red);}
   .dt-cur.earlier{color:var(--green);}
   .dt-old{color:var(--text-3);font-size:11.5px;line-height:1.35;}
+  /* story detail drawer */
+  td a.sum-link{font-family:inherit;font-size:13px;white-space:normal;color:var(--text);font-weight:500;}
+  td a.sum-link:hover{color:var(--blue);}
+  .drawer-bg{position:fixed;inset:0;background:rgba(28,26,46,.35);z-index:60;display:flex;justify-content:flex-end;}
+  .drawer{width:min(620px,100%);height:100%;background:var(--card);overflow-y:auto;padding:22px 24px 40px;box-shadow:-8px 0 30px rgba(0,0,0,.15);}
+  .drawer h2{font-size:17px;margin:4px 0 6px;font-weight:600;line-height:1.3;}
+  .drawer .d-close{float:right;border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:4px 10px;font-size:13px;cursor:pointer;}
+  .drawer .d-key a{font-family:var(--mono);font-size:12.5px;color:var(--blue);text-decoration:none;}
+  .drawer .d-meta{font-size:12.5px;color:var(--text-2);margin:2px 0 16px;}
+  .drawer .d-effort{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;}
+  .drawer .d-effort .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);font-weight:600;}
+  .drawer .d-effort .val{font-size:26px;font-weight:700;margin-top:2px;}
+  .drawer h3{font-size:13px;margin:16px 0 6px;font-weight:600;}
+  .drawer h3 .n{font-weight:500;color:var(--text-3);}
+  .drawer table{font-size:12.5px;}
+  .drawer td.bsum{max-width:230px;}
+  .drawer tr.done td{color:var(--text-3);}
+  .drawer .d-note{font-size:12px;color:var(--text-3);margin-top:6px;}
   .rm{min-width:200px;max-width:280px;font-size:12.5px;}
   .rm .rm-text{white-space:pre-wrap;word-break:break-word;}
   .rm .rm-meta{font-size:11px;color:var(--text-3);margin-top:2px;}
@@ -336,6 +354,63 @@ document.addEventListener('click', ev => {
   else if(act === 'save') saveRemarkFor(key, box.querySelector('textarea').value);
 });
 
+/* ---------- STORY DETAIL: effort estimate + linked bugs ---------- */
+function effortHtml(t){
+  const r = DATA.meta.fieldsResolved || {};
+  if(r.effort === null) return '<div class="val muted" style="font-size:15px">Field not found on the SaaS Jira site</div>';
+  if(t.effort === null || t.effort === undefined || t.effort === '') return '<div class="val muted">Not set</div>';
+  return '<div class="val">' + esc(t.effort) + '</div>';
+}
+function bugRows(list){
+  return '<div class="tbl-wrap"><table><tr><th>Key</th><th>Summary</th><th>Pri</th><th>Status</th><th>Assignee</th></tr>' +
+    list.map(b => '<tr class="' + (b.done ? 'done' : '') + '">' +
+      '<td><a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(b.key) + '</a></td>' +
+      '<td class="bsum">' + esc(b.summary) + '</td>' +
+      '<td>' + (b.priority ? '<span class="pri ' + (/^P[12]$/.test(b.priority) ? esc(b.priority) : 'other') + '">' + esc(b.priority) + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      '<td>' + esc(b.status) + (b.done ? ' <span class="chip">Done</span>' : '') + '</td>' +
+      '<td>' + (b.assignee === 'Unassigned' ? '<span class="muted">Unassigned</span>' : esc(b.assignee)) + '</td></tr>').join('') + '</table></div>';
+}
+function bugSection(title, list){
+  const open = list.filter(b => !b.done).length;
+  return '<h3>' + esc(title) + ' <span class="n">(' + list.length + (list.length ? ', ' + open + ' open' : '') + ')</span></h3>' +
+    (list.length ? bugRows(list) : '<div class="muted" style="font-size:12.5px">No bugs linked.</div>');
+}
+function storyDetailHtml(t){
+  let bugs;
+  if(t.linkedBugs === null || t.linkedBugs === undefined){
+    bugs = '<div class="error-box" style="display:block">Could not load linked bugs' + (DATA.meta.linkedBugsError ? ': ' + esc(DATA.meta.linkedBugsError) : '') + '</div>';
+  }else{
+    const prod = t.linkedBugs.filter(b => b.zone === 'prod');
+    const uat = t.linkedBugs.filter(b => b.zone === 'uat');
+    bugs = '<div class="d-meta" style="margin-bottom:0">' + t.linkedBugs.length + ' bug' + (t.linkedBugs.length === 1 ? '' : 's') + ' linked to this story</div>' +
+      bugSection('Prod bugs', prod) + bugSection('UAT bugs', uat) +
+      '<div class="d-note">A bug with no Zone set is shown under UAT, the same rule as the bug counts. Closed bugs are greyed out.' +
+      (t.linkedBugsUnreadable ? ' ' + t.linkedBugsUnreadable + ' linked bug(s) could not be read from Jira.' : '') + '</div>';
+  }
+  return '<button type="button" class="d-close" data-close="1">Close</button>' +
+    '<div class="d-key"><a href="' + esc(t.url) + '" target="_blank" rel="noopener">' + esc(t.key) + '</a></div>' +
+    '<h2>' + esc(t.summary) + '</h2>' +
+    '<div class="d-meta">' + esc(t.status || '') + (t.assignee ? ' · ' + esc(t.assignee) : '') + '</div>' +
+    '<div class="d-effort"><div class="lbl">Effort estimate · High-Level Effort Estimate (Story Points)</div>' + effortHtml(t) + '</div>' +
+    bugs;
+}
+function closeDrawer(){ const e = document.getElementById('drawerBg'); if(e) e.remove(); }
+function openDrawer(key){
+  const t = DATA.stories.find(x => x.key === key);
+  if(!t) return;
+  closeDrawer();
+  const bg = document.createElement('div');
+  bg.className = 'drawer-bg'; bg.id = 'drawerBg';
+  bg.innerHTML = '<div class="drawer" role="dialog" aria-label="Story detail">' + storyDetailHtml(t) + '</div>';
+  document.body.appendChild(bg);
+}
+document.addEventListener('click', ev => {
+  const link = ev.target.closest && ev.target.closest('a.sum-link');
+  if(link){ ev.preventDefault(); openDrawer(link.dataset.key); return; }
+  if(ev.target.id === 'drawerBg' || (ev.target.dataset && ev.target.dataset.close)) closeDrawer();
+});
+document.addEventListener('keydown', ev => { if(ev.key === 'Escape') closeDrawer(); });
+
 /* ---------- BUGS ---------- */
 function previousDay(){
   const h = (DATA.history || []);
@@ -524,7 +599,7 @@ function renderStoryTable(){
   document.getElementById('storyTableTitle').textContent = (storyStatus || 'All open stories') + ' (' + rows.length + ')';
   const body = rows.map(s => `<tr>
       <td><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.key)}</a></td>
-      <td class="sum">${esc(s.summary)}</td>
+      <td class="sum"><a href="#" class="sum-link" data-key="${esc(s.key)}" title="Open effort estimate and linked bugs">${esc(s.summary)}</a></td>
       <td>${esc(s.status)}</td>
       <td>${s.priority ? `<span class="pri ${/^P[12]$/.test(s.priority) ? esc(s.priority) : 'other'}">${esc(s.priority)}</span>` : '<span class="muted">—</span>'}</td>
       <td>${s.assignee === 'Unassigned' ? '<span class="muted">Unassigned</span>' : esc(s.assignee)}</td>
