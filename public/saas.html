@@ -292,7 +292,6 @@ function decorate(){
     t.devSort = t.devForecast.current || '';
     t.uatSort = t.uatCommit.current || '';
     t.remarkText = t.remark ? t.remark.text : '';
-    t.tcSort = t.testCases ? (t.testCases.created ? 'Completed' : 'Pending') : '';
   });
 }
 const fmtDate = iso => {
@@ -330,13 +329,6 @@ function sheetLink(tc){
   const who = (sh.author ? esc(sh.author) + ' · ' : '') + (sh.created ? esc(fmtDay(sh.created)) : '');
   const label = sh.url ? '<a href="' + esc(sh.url) + '" target="_blank" rel="noopener">Open sheet</a>' : esc(sh.file || 'attachment');
   return '<div class="rm-meta">' + label + (who ? ' · ' + who : '') + '</div>';
-}
-function testCaseCell(t){
-  const tc = t.testCases;
-  if(!tc) return '<span class="muted" title="Comments were not returned by Jira">—</span>';
-  if(tc.created) return '<span style="color:var(--green);font-weight:600">Completed</span>' + sheetLink(tc);
-  return '<span style="color:var(--amber);font-weight:600">Pending</span><div class="rm-meta">' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ', no sheet' +
-    (tc.partial ? ' (thread not fully read)' : '') + '</div>';
 }
 function testCaseBox(t){
   const tc = t.testCases;
@@ -605,7 +597,7 @@ const STORY_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'status', label:'Status' },
   { key:'priority', label:'Pri' }, { key:'assignee', label:'Assignee' },
   { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
-  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'tcSort', label:'Test case creation' }, { key:'remarkText', label:'Risk remark' },
+  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'remarkText', label:'Risk remark' },
 ];
 function setStoryStatus(s){
   storyStatus = storyStatus === s ? null : s;
@@ -626,7 +618,7 @@ function renderStoryTable(){
   const qText = document.getElementById('storySearch').value.trim().toLowerCase();
   let rows = DATA.stories;
   if(storyStatus) rows = rows.filter(s => (s.status || '—') === storyStatus);
-  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.devSort, s.uatSort, s.tcSort, s.remarkText].join(' ').toLowerCase().includes(qText));
+  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.devSort, s.uatSort, s.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, storySort);
   document.getElementById('storyTableTitle').textContent = (storyStatus || 'All open stories') + ' (' + rows.length + ')';
   const body = rows.map(s => `<tr>
@@ -639,7 +631,6 @@ function renderStoryTable(){
       <td class="num ${s.idleDays > 14 ? 'age-hot' : ''}">${s.idleDays ?? '—'}</td>
       <td>${dateCell(s.devForecast, 'devForecast')}</td>
       <td>${dateCell(s.uatCommit, 'uatCommit')}</td>
-      <td>${testCaseCell(s)}</td>
       <td>${remarkCell(s)}</td>
     </tr>`).join('');
   document.getElementById('storyTable').innerHTML = headerRow(STORY_COLS, storySort, 'sortStories') +
