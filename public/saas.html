@@ -285,6 +285,7 @@ function decorate(){
     t.devSort = t.devForecast.current || '';
     t.uatSort = t.uatCommit.current || '';
     t.remarkText = t.remark ? t.remark.text : '';
+    t.tcSort = t.testCases ? (t.testCases.created ? 'Yes' : 'No') : '';
   });
 }
 const fmtDate = iso => {
@@ -315,6 +316,28 @@ function remarkCell(t){
   return '<div class="rm" data-key="' + esc(t.key) + '">' +
     (r ? '<div class="rm-text">' + esc(r.text) + '</div>' + meta : '<span class="muted">No remark</span>') +
     '<div><button type="button" data-act="edit">' + (r ? 'Edit' : '+ Add remark') + '</button></div></div>';
+}
+function sheetLink(tc){
+  const sh = tc && tc.sheet;
+  if(!sh) return '';
+  const who = (sh.author ? esc(sh.author) + ' · ' : '') + (sh.created ? esc(fmtDay(sh.created)) : '');
+  const label = sh.url ? '<a href="' + esc(sh.url) + '" target="_blank" rel="noopener">Open sheet</a>' : esc(sh.file || 'attachment');
+  return '<div class="rm-meta">' + label + (who ? ' · ' + who : '') + '</div>';
+}
+function testCaseCell(t){
+  const tc = t.testCases;
+  if(!tc) return '<span class="muted" title="Comments were not returned by Jira">—</span>';
+  if(tc.created) return '<span style="color:var(--green);font-weight:600">Yes</span>' + sheetLink(tc);
+  return '<span style="color:var(--red);font-weight:600">No</span><div class="rm-meta">' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ', no sheet' +
+    (tc.partial ? ' (thread not fully read)' : '') + '</div>';
+}
+function testCaseBox(t){
+  const tc = t.testCases;
+  let body;
+  if(!tc) body = '<span class="muted">Comments were not returned by Jira.</span>';
+  else if(tc.created) body = '<div class="val" style="color:var(--green)">Yes</div>' + sheetLink(tc) + (tc.sheets > 1 ? '<div class="d-note">' + tc.sheets + ' comments carry a sheet; the latest is shown.</div>' : '');
+  else body = '<div class="val" style="color:var(--red)">No</div><div class="d-note">No comment on this ticket has a spreadsheet link or attachment (' + tc.comments + ' comment' + (tc.comments === 1 ? '' : 's') + ' checked).</div>';
+  return '<div class="d-effort"><div class="lbl">Test cases · sheet in QA comment</div>' + body + '</div>';
 }
 function findTicket(key){ return allTickets().find(t => t.key === key); }
 function openRemarkEditor(key){
@@ -392,6 +415,7 @@ function storyDetailHtml(t){
     '<h2>' + esc(t.summary) + '</h2>' +
     '<div class="d-meta">' + esc(t.status || '') + (t.assignee ? ' · ' + esc(t.assignee) : '') + '</div>' +
     '<div class="d-effort"><div class="lbl">Effort estimate · High-Level Effort Estimate (Story Points)</div>' + effortHtml(t) + '</div>' +
+    testCaseBox(t) +
     bugs;
 }
 function closeDrawer(){ const e = document.getElementById('drawerBg'); if(e) e.remove(); }
@@ -574,7 +598,7 @@ const STORY_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'status', label:'Status' },
   { key:'priority', label:'Pri' }, { key:'assignee', label:'Assignee' },
   { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
-  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'remarkText', label:'Risk remark' },
+  { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'tcSort', label:'Test cases' }, { key:'remarkText', label:'Risk remark' },
 ];
 function setStoryStatus(s){
   storyStatus = storyStatus === s ? null : s;
@@ -588,13 +612,14 @@ function renderStoryTiles(){
   document.getElementById('storyTiles').innerHTML = entries.length
     ? entries.map(([st, n]) => `<button class="tile ${storyStatus === st ? 'active' : ''}" onclick='setStoryStatus(${JSON.stringify(st)})'><div class="lbl">${esc(st)}</div><div class="val">${n}</div></button>`).join('')
     : '<div class="muted" style="font-size:13px">No open stories match the SPI query.</div>';
-  document.getElementById('storyJqlHint').textContent = DATA.stories.length + ' open · click a status to filter';
+  const withTc = DATA.stories.filter(s => s.testCases && s.testCases.created).length;
+  document.getElementById('storyJqlHint').textContent = DATA.stories.length + ' open · ' + withTc + ' with a test case sheet · click a status to filter';
 }
 function renderStoryTable(){
   const qText = document.getElementById('storySearch').value.trim().toLowerCase();
   let rows = DATA.stories;
   if(storyStatus) rows = rows.filter(s => (s.status || '—') === storyStatus);
-  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.devSort, s.uatSort, s.remarkText].join(' ').toLowerCase().includes(qText));
+  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.devSort, s.uatSort, s.tcSort, s.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, storySort);
   document.getElementById('storyTableTitle').textContent = (storyStatus || 'All open stories') + ' (' + rows.length + ')';
   const body = rows.map(s => `<tr>
@@ -607,6 +632,7 @@ function renderStoryTable(){
       <td class="num ${s.idleDays > 14 ? 'age-hot' : ''}">${s.idleDays ?? '—'}</td>
       <td>${dateCell(s.devForecast, 'devForecast')}</td>
       <td>${dateCell(s.uatCommit, 'uatCommit')}</td>
+      <td>${testCaseCell(s)}</td>
       <td>${remarkCell(s)}</td>
     </tr>`).join('');
   document.getElementById('storyTable').innerHTML = headerRow(STORY_COLS, storySort, 'sortStories') +
