@@ -102,11 +102,11 @@
   .dt-cur.later{color:var(--red);}
   .dt-cur.earlier{color:var(--green);}
   .dt-old{color:var(--text-3);font-size:11.5px;line-height:1.35;}
-  /* story detail drawer */
+  /* story detail pop-up (centred modal) */
   td a.sum-link{font-family:inherit;font-size:13px;white-space:normal;color:var(--text);font-weight:500;}
   td a.sum-link:hover{color:var(--blue);}
-  .drawer-bg{position:fixed;inset:0;background:rgba(28,26,46,.35);z-index:60;display:flex;justify-content:flex-end;}
-  .drawer{width:min(620px,100%);height:100%;background:var(--card);overflow-y:auto;padding:22px 24px 40px;box-shadow:-8px 0 30px rgba(0,0,0,.15);}
+  .drawer-bg{position:fixed;inset:0;background:rgba(28,26,46,.35);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .drawer{width:min(720px,100%);max-height:calc(100vh - 48px);background:var(--card);overflow-y:auto;padding:22px 24px 26px;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.28);}
   .drawer h2{font-size:17px;margin:4px 0 6px;font-weight:600;line-height:1.3;}
   .drawer .d-close{float:right;border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:4px 10px;font-size:13px;cursor:pointer;}
   .drawer .d-key a{font-family:var(--mono);font-size:12.5px;color:var(--blue);text-decoration:none;}
@@ -401,7 +401,7 @@ function openDrawer(key){
   closeDrawer();
   const bg = document.createElement('div');
   bg.className = 'drawer-bg'; bg.id = 'drawerBg';
-  bg.innerHTML = '<div class="drawer" role="dialog" aria-label="Story detail">' + storyDetailHtml(t) + '</div>';
+  bg.innerHTML = '<div class="drawer" role="dialog" aria-modal="true" aria-label="Story detail">' + storyDetailHtml(t) + '</div>';
   document.body.appendChild(bg);
 }
 document.addEventListener('click', ev => {
