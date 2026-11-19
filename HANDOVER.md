@@ -33,6 +33,11 @@ Shared code: `lib/jira.js` (Jira calls, custom field IDs), `lib/lifecycle.js` (s
 ## Every change
 Check the real Jira data first, make a small edit, `node --check` each changed `.js`, confirm 12 files in `api/`, push, then confirm Vercel's Source tab shows your commit (stale deployments have happened). Hard-refresh the page or use its Refresh button when checking numbers.
 
+## TCP view: date changes and risk remarks
+- **Date changes** come from the Jira changelog (`lib/saas.js`, `extractDateChanges`): the system Due date, any field named like a delivery/ETA/target date, and any field whose old and new values are both ISO dates. It shows "was, now, days moved, who, when" per ticket. Jira returns only the latest 100 changelog entries on a search, so very old moves can be missing (the page says so). Tickets with no date field set show "No date changes".
+- **Risk remarks** are typed on the page, one per ticket, up to 600 characters, saved to the Blob store under `saas-remarks/<KEY>/` (random URL suffix, replaced on each save, cleared by saving empty). Any signed-in user can add, edit or clear a remark. They are saved through `POST /api/hygiene?view=saas-remark`; no new API file was added (the Hobby limit of 12 stays).
+- Remarks are internal notes today. Do not screen-share this tab with a client without reading them first.
+
 ## Open items
 - Remove the duplicate "Tachyon Rewards JAS 26" stream from Rewards PLE (Manage Programs > Edit).
 - Next phase: Teams/email digest, CMR (Change Management Record) rules integration, release quarter as a real Jira field instead of a label.

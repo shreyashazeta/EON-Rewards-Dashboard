@@ -95,6 +95,22 @@
   .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .hidden{display:none !important;}
+
+  /* date-change history + risk remarks */
+  details.dc{font-size:12.5px;min-width:150px;}
+  details.dc summary{cursor:pointer;color:var(--text-2);white-space:nowrap;}
+  details.dc summary.slip{color:var(--amber);font-weight:600;}
+  details.dc ul{margin:6px 0 0;padding-left:16px;color:var(--text-2);}
+  details.dc li{margin:3px 0;}
+  details.dc .up{color:var(--red);font-weight:600;}
+  details.dc .down{color:var(--green);font-weight:600;}
+  .rm{min-width:200px;max-width:280px;font-size:12.5px;}
+  .rm .rm-text{white-space:pre-wrap;word-break:break-word;}
+  .rm .rm-meta{font-size:11px;color:var(--text-3);margin-top:2px;}
+  .rm button{border:1px solid var(--border-strong);background:#fff;color:var(--text-2);font-size:11.5px;border-radius:6px;padding:2px 8px;cursor:pointer;margin-top:4px;}
+  .rm button.primary{background:var(--text);color:#fff;border-color:var(--text);}
+  .rm textarea{width:100%;min-height:62px;font:inherit;font-size:12.5px;border:1px solid var(--border-strong);border-radius:6px;padding:6px 8px;resize:vertical;}
+  .rm .rm-err{color:var(--red);font-size:11.5px;margin-top:2px;}
 </style>
 </head>
 <body>
@@ -221,6 +237,7 @@ async function load(){
     const json = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(json.error || ('Server responded ' + res.status));
     DATA = json;
+    decorate();
     const pill = document.getElementById('livePill');
     pill.textContent = 'Live'; pill.className = 'live-pill live';
     document.getElementById('stamp').textContent = 'Pulled ' + fmtTime(json.meta.dataPulledAt) + ' · ' + json.meta.site.replace('https://','');
@@ -235,6 +252,82 @@ async function load(){
     document.getElementById('loading').classList.remove('show');
   }
 }
+
+/* ---------- DATE CHANGES + RISK REMARKS ---------- */
+const REMARK_API = '/api/hygiene?view=saas-remark';
+const REMARK_MAX = 600;
+const fmtDay = iso => (iso ? String(iso).slice(0, 10) : '—');
+
+function allTickets(){
+  return [...DATA.bugs.prod.bugs, ...DATA.bugs.uat.bugs, ...DATA.stories];
+}
+function decorate(){
+  allTickets().forEach(t => {
+    t.dateHistory = t.dateHistory || { changes:[], count:0, slips:0, pushedDays:0, partial:false };
+    t.slipDays = t.dateHistory.pushedDays || 0;
+    t.remarkText = t.remark ? t.remark.text : '';
+  });
+}
+function dateCell(t){
+  const h = t.dateHistory;
+  const due = t.dueDate ? '<div class="muted" style="font-size:11.5px">Due ' + esc(fmtDay(t.dueDate)) + '</div>' : '';
+  if(!h || !h.count) return '<span class="muted">No date changes</span>' + due;
+  const label = h.slips
+    ? '▲ pushed ' + h.slips + '× (+' + h.pushedDays + 'd)'
+    : h.count + ' date change' + (h.count > 1 ? 's' : '');
+  const items = h.changes.map(c => {
+    const d = c.deltaDays;
+    const delta = d == null ? '' : ' <span class="' + (d > 0 ? 'up' : 'down') + '">(' + (d > 0 ? '+' : '') + d + 'd)</span>';
+    return '<li>' + esc(c.field) + ': ' + esc(c.from || '—') + ' → ' + esc(c.to || 'cleared') + delta +
+      '<div class="muted" style="font-size:11px">' + esc(fmtDay(c.at)) + (c.by ? ' · ' + esc(c.by) : '') + '</div></li>';
+  }).join('');
+  return '<details class="dc"><summary class="' + (h.slips ? 'slip' : '') + '">' + esc(label) + '</summary><ul>' + items + '</ul>' +
+    (h.partial ? '<div class="muted" style="font-size:11px">Only the latest changes are shown.</div>' : '') + '</details>' + due;
+}
+function remarkCell(t){
+  const r = t.remark;
+  const meta = r ? '<div class="rm-meta">' + esc(r.by || '') + ' · ' + esc(fmtDay(r.at)) + '</div>' : '';
+  return '<div class="rm" data-key="' + esc(t.key) + '">' +
+    (r ? '<div class="rm-text">' + esc(r.text) + '</div>' + meta : '<span class="muted">No remark</span>') +
+    '<div><button type="button" data-act="edit">' + (r ? 'Edit' : '+ Add remark') + '</button></div></div>';
+}
+function findTicket(key){ return allTickets().find(t => t.key === key); }
+function openRemarkEditor(key){
+  const box = document.querySelector('.rm[data-key="' + key + '"]');
+  const t = findTicket(key);
+  if(!box || !t) return;
+  box.innerHTML = '<textarea maxlength="' + REMARK_MAX + '" placeholder="Foreseeable risk, owner, mitigation…">' + esc(t.remark ? t.remark.text : '') + '</textarea>' +
+    '<div><button type="button" class="primary" data-act="save">Save</button> <button type="button" data-act="cancel">Cancel</button>' +
+    (t.remark ? ' <button type="button" data-act="clear">Clear</button>' : '') + '</div><div class="rm-err"></div>';
+  box.querySelector('textarea').focus();
+}
+async function saveRemarkFor(key, text){
+  const box = document.querySelector('.rm[data-key="' + key + '"]');
+  const err = box && box.querySelector('.rm-err');
+  try{
+    const res = await fetch(REMARK_API, {
+      method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ key, text }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if(res.status === 401){ showLoginGate(); return; }
+    if(!res.ok) throw new Error(json.error || ('Server responded ' + res.status));
+    const t = findTicket(key);
+    if(t){ t.remark = json.remark || null; t.remarkText = t.remark ? t.remark.text : ''; }
+    renderBugTable(); renderStoryTable();
+  }catch(e){
+    if(err) err.textContent = 'Could not save: ' + e.message;
+  }
+}
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest && ev.target.closest('.rm button[data-act]');
+  if(!btn) return;
+  const box = btn.closest('.rm'); const key = box.dataset.key; const act = btn.dataset.act;
+  if(act === 'edit') openRemarkEditor(key);
+  else if(act === 'cancel'){ renderBugTable(); renderStoryTable(); }
+  else if(act === 'clear') saveRemarkFor(key, '');
+  else if(act === 'save') saveRemarkFor(key, box.querySelector('textarea').value);
+});
 
 /* ---------- BUGS ---------- */
 function previousDay(){
@@ -278,6 +371,7 @@ function allBugs(){
 }
 
 const sorters = {
+  slipDays: (a,b) => (a.slipDays || 0) - (b.slipDays || 0) || ((a.dateHistory && a.dateHistory.count) || 0) - ((b.dateHistory && b.dateHistory.count) || 0),
   priority: (a,b) => (a.priority||'').localeCompare(b.priority||'') || (b.ageDays||0) - (a.ageDays||0),
 };
 function sortRows(rows, s){
@@ -298,6 +392,7 @@ const BUG_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'priority', label:'Pri' },
   { key:'_zone', label:'Zone' }, { key:'status', label:'Status' }, { key:'assignee', label:'Assignee' },
   { key:'module', label:'Product / Module' }, { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
+  { key:'slipDays', label:'Date changes' }, { key:'remarkText', label:'Risk remark' },
 ];
 
 function renderBugTable(){
@@ -305,7 +400,7 @@ function renderBugTable(){
   let rows = allBugs();
   if(bugZone) rows = rows.filter(b => b._zone === bugZone);
   if(bugPri && bugPri !== 'all') rows = rows.filter(b => b.priority === bugPri);
-  if(qText) rows = rows.filter(b => [b.key, b.summary, b.assignee, b.module, b.product, b.status].join(' ').toLowerCase().includes(qText));
+  if(qText) rows = rows.filter(b => [b.key, b.summary, b.assignee, b.module, b.product, b.status, b.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, bugSort);
 
   const zoneName = { prod:'Prod', uat:'UAT' };
@@ -322,6 +417,8 @@ function renderBugTable(){
       <td>${esc(b.product || '')}${b.module ? '<div class="muted" style="font-size:12px">' + esc(b.module) + '</div>' : ''}</td>
       <td class="num ${b.ageDays > 30 ? 'age-hot' : ''}">${b.ageDays ?? '—'}</td>
       <td class="num ${b.idleDays > 7 ? 'age-hot' : ''}">${b.idleDays ?? '—'}</td>
+      <td>${dateCell(b)}</td>
+      <td>${remarkCell(b)}</td>
     </tr>`).join('');
   document.getElementById('bugTable').innerHTML = headerRow(BUG_COLS, bugSort, 'sortBugs') +
     (body || `<tr class="empty-row"><td colspan="${BUG_COLS.length}">No bugs match.</td></tr>`);
@@ -395,6 +492,7 @@ const STORY_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'status', label:'Status' },
   { key:'priority', label:'Pri' }, { key:'assignee', label:'Assignee' },
   { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
+  { key:'slipDays', label:'Date changes' }, { key:'remarkText', label:'Risk remark' },
 ];
 function setStoryStatus(s){
   storyStatus = storyStatus === s ? null : s;
@@ -414,7 +512,7 @@ function renderStoryTable(){
   const qText = document.getElementById('storySearch').value.trim().toLowerCase();
   let rows = DATA.stories;
   if(storyStatus) rows = rows.filter(s => (s.status || '—') === storyStatus);
-  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status].join(' ').toLowerCase().includes(qText));
+  if(qText) rows = rows.filter(s => [s.key, s.summary, s.assignee, s.status, s.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, storySort);
   document.getElementById('storyTableTitle').textContent = (storyStatus || 'All open stories') + ' (' + rows.length + ')';
   const body = rows.map(s => `<tr>
@@ -425,6 +523,8 @@ function renderStoryTable(){
       <td>${s.assignee === 'Unassigned' ? '<span class="muted">Unassigned</span>' : esc(s.assignee)}</td>
       <td class="num">${s.ageDays ?? '—'}</td>
       <td class="num ${s.idleDays > 14 ? 'age-hot' : ''}">${s.idleDays ?? '—'}</td>
+      <td>${dateCell(s)}</td>
+      <td>${remarkCell(s)}</td>
     </tr>`).join('');
   document.getElementById('storyTable').innerHTML = headerRow(STORY_COLS, storySort, 'sortStories') +
     (body || `<tr class="empty-row"><td colspan="${STORY_COLS.length}">No stories match.</td></tr>`);
