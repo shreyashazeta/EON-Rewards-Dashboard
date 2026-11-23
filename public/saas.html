@@ -481,7 +481,7 @@ document.addEventListener('keydown', ev => { if(ev.key === 'Escape') closeDrawer
 const ESC_API = '/api/hygiene?view=saas-escalate';
 const ESC_TABLE_API = '/api/hygiene?view=saas-escalations';
 const ESC_KEY = /^[A-Za-z][A-Za-z0-9]{1,9}-\d{1,7}$/;
-let escState = { step:'issue', issue:'', key:'', result:null, busy:false, error:'', noFacts:false, trackedId:null };
+let escState = { step:'issue', issue:'', key:'', result:null, busy:false, error:'', noFacts:false, trackedId:null, comment:true, tracked:null };
 
 function escDates(d){
   if(!d) return null;
@@ -517,7 +517,7 @@ function escFacts(key){
 }
 function escClose(){ const e = document.getElementById('escBox'); if(e) e.remove(); }
 function escOpen(key){
-  escState = { step:'issue', issue:'', key: key || '', result:null, busy:false, error:'', noFacts:false, trackedId:null };
+  escState = { step:'issue', issue:'', key: key || '', result:null, busy:false, error:'', noFacts:false, trackedId:null, comment:true, tracked:null };
   escRender();
 }
 function escEl(tag, attrs, text){
@@ -577,16 +577,24 @@ function escRender(){
     }
     const track = escEl('div', { class:'esc-track' });
     track.appendChild(escEl('div', { style:'font-weight:600;margin-bottom:6px' }, 'Track this escalation?'));
+    if(k){
+      const lab = escEl('label', { style:'display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px;color:var(--text)' });
+      const cb = escEl('input', { type:'checkbox', id:'escComment', style:'width:auto;margin-top:2px' }); cb.checked = st.comment; cb.onchange = () => { st.comment = cb.checked; };
+      lab.appendChild(cb); lab.appendChild(escEl('span', {}, 'If I track it, also add a comment on ' + k + ' with the email subject and today\'s date (visible to everyone who can see the ticket).'));
+      track.appendChild(lab);
+    }
     const yn = escEl('div', { class:'esc-row', style:'margin-top:0' });
     const yes = escBtn(st.busy ? 'Saving…' : 'Yes, track it', escTrack, 'esc-go'); yes.style.marginTop = '0'; yes.disabled = st.busy;
     yn.appendChild(yes);
     const no = escBtn('No', escClose); no.disabled = st.busy; yn.appendChild(no);
     track.appendChild(yn);
-    track.appendChild(escEl('div', { class:'esc-fine', style:'margin-top:6px' }, 'No: nothing is stored. Yes: the issue, ticket and summary are saved in the Escalations tab.'));
+    track.appendChild(escEl('div', { class:'esc-fine', style:'margin-top:6px' }, 'No: nothing is stored and nothing is written to Jira. Yes: the issue, ticket and summary are saved in the Escalations tab.'));
     box.appendChild(track);
     const back = escEl('div', { class:'esc-row' }); back.appendChild(escBtn('Change the issue or ticket and redo', () => { st.result = null; st.error = ''; st.step = 'issue'; escRender(); })); box.appendChild(back);
   }else if(st.step === 'tracked'){
-    box.appendChild(escEl('div', { class:'esc-sec', style:'margin-top:10px' }, 'Tracked. It is now in the Escalations tab as Open, with today as the date of escalation.'));
+    const jc = st.tracked && st.tracked.jiraComment;
+    box.appendChild(escEl('div', { class:'esc-sec', style:'margin-top:10px' }, 'Tracked. It is now in the Escalations tab as Open, with today as the date of escalation.' +
+      (jc ? (jc.status === 'posted' ? '\n\nComment added on ' + st.tracked.ticket + '.' : '\n\nThe Jira comment on ' + st.tracked.ticket + ' did not go through: ' + jc.error + '. You can retry it from the Escalations tab.') : '')));
     const row = escEl('div', { class:'esc-row' });
     row.appendChild(escBtn('Open Escalations tab', () => { escClose(); const d = document.getElementById('drawerBg'); if(d) d.remove(); document.querySelector('.tab[data-view="esc"]').click(); }, 'esc-go'));
     row.appendChild(escBtn('Done', escClose));
@@ -623,8 +631,8 @@ async function escTrack(){
   const st = escState;
   st.busy = true; st.error = ''; escRender();
   try{
-    const out = await escPost(ESC_TABLE_API, { action:'create', ticket: st.key === 'N/A' ? null : st.key, issue: st.issue.trim(), summary: st.result.summary, subject: st.result.subject });
-    st.trackedId = out.escalation.id; st.step = 'tracked';
+    const out = await escPost(ESC_TABLE_API, { action:'create', ticket: st.key === 'N/A' ? null : st.key, issue: st.issue.trim(), summary: st.result.summary, subject: st.result.subject, commentOnTicket: !!(st.comment && st.key && st.key !== 'N/A') });
+    st.trackedId = out.escalation.id; st.tracked = out.escalation; st.step = 'tracked';
     await loadEsc();
   }catch(e){ st.error = e.message; }
   st.busy = false; escRender();
@@ -646,6 +654,13 @@ function escTicketHtml(t){
   const onSite = /^(SPI|SPB)-/.test(t) && DATA && DATA.meta && DATA.meta.site;
   return onSite ? '<a href="' + esc(DATA.meta.site) + '/browse/' + esc(t) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : '<b>' + esc(t) + '</b>';
 }
+function escJiraLine(e){
+  if(!e.ticket) return '';
+  const jc = e.jiraComment;
+  if(jc && jc.status === 'posted') return '<div class="muted" style="margin-top:4px;font-size:12px">Comment added on ' + esc(e.ticket) + '</div>';
+  return '<div style="margin-top:4px;font-size:12px">' + (jc && jc.status === 'failed' ? '<span style="color:var(--red)">Jira comment failed: ' + esc(jc.error) + '</span> ' : '<span class="muted">No Jira comment yet</span> ') +
+    '<button type="button" class="esc-mini" data-eact="comment" data-id="' + esc(e.id) + '">' + (jc ? 'Retry comment' : 'Add comment to ' + esc(e.ticket)) + '</button></div>';
+}
 function renderEscTable(){
   const f = document.getElementById('escFilter').value;
   const rows = ESCS.filter(e => f === 'all' || e.status === f);
@@ -664,6 +679,7 @@ function renderEscTable(){
       : (e.status === 'open' ? '<div style="margin-top:6px"><button type="button" class="esc-mini" data-eact="bump" data-id="' + esc(e.id) + '">Bump up</button></div>' : ''));
     return '<tr data-id="' + esc(e.id) + '"><td class="sum">' + escTicketHtml(e.ticket) + '<div style="white-space:pre-wrap;margin-top:2px">' + esc(e.issue) + '</div>' +
       (e.summary ? '<details style="margin-top:4px"><summary class="muted" style="cursor:pointer">Summary</summary><div style="white-space:pre-wrap;margin-top:4px">' + esc(e.summary) + '</div></details>' : '') +
+      escJiraLine(e) +
       '<div style="margin-top:4px"><button type="button" class="esc-mini" data-eact="delete" data-id="' + esc(e.id) + '">Delete</button></div></td>' +
       '<td>' + escDateStack(e.escalatedOn) + '</td><td>' + statusCell + '</td><td>' + (e.resolvedOn ? esc(e.resolvedOn) : '<span class="muted">—</span>') + '</td><td>' + fuCell + '</td></tr>';
   }).join('');
@@ -697,6 +713,7 @@ document.getElementById('escTable').addEventListener('click', ev => {
   if(act === 'bump-save') return escAct('bump', { id, note: tr.querySelector('.esc-note').value }, errBox);
   if(act === 'resolve-save') return escAct('resolve', { id, date: tr.querySelector('.esc-date').value }, errBox);
   if(act === 'reopen') return escAct('reopen', { id });
+  if(act === 'comment'){ b.disabled = true; return escAct('comment', { id }, null); }
   if(act === 'delete'){ if(confirm('Delete this escalation and its follow ups? This cannot be undone.')) return escAct('delete', { id }).then(() => { ESCS = ESCS.filter(x => x.id !== id); renderEscTable(); }); }
 });
 document.getElementById('escFilter').addEventListener('change', renderEscTable);
