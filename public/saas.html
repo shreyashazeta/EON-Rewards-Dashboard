@@ -105,6 +105,24 @@
   /* story detail pop-up (centred modal) */
   td a.sum-link{font-family:inherit;font-size:13px;white-space:normal;color:var(--text);font-weight:500;}
   td a.sum-link:hover{color:var(--blue);}
+  .esc-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);background:#fff;color:var(--text);font-size:13px;font-weight:500;padding:7px 14px;border-radius:8px;cursor:pointer;}
+  .esc-btn:hover{background:#f0f1f3;}
+  .drawer .d-esc{float:right;margin-right:8px;border:1px solid var(--text);background:var(--text);color:#fff;border-radius:8px;padding:4px 10px;font-size:13px;cursor:pointer;}
+  .esc-box{position:fixed;top:20px;right:20px;width:380px;max-height:calc(100vh - 40px);overflow:auto;background:#fff;border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 40px rgba(28,26,46,.22);padding:16px 18px;z-index:80;font-size:13px;}
+  .esc-box h3{font-size:14px;font-weight:600;margin:0 0 2px;}
+  .esc-box .esc-x{float:right;border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:2px 9px;font-size:12px;cursor:pointer;}
+  .esc-box label{display:block;font-size:11.5px;font-weight:600;color:var(--text-2);margin:12px 0 4px;}
+  .esc-box input,.esc-box textarea{width:100%;box-sizing:border-box;border:1px solid var(--border-strong);border-radius:8px;padding:7px 9px;font:inherit;color:var(--text);background:#fff;}
+  .esc-box textarea{min-height:92px;resize:vertical;}
+  .esc-box textarea.esc-mail{min-height:170px;}
+  .esc-box .esc-go{margin-top:10px;border:1px solid var(--text);background:var(--text);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;}
+  .esc-box .esc-go:disabled{opacity:.55;cursor:default;}
+  .esc-box .esc-sec{border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:#fafafb;white-space:pre-wrap;line-height:1.5;}
+  .esc-box .esc-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .esc-box .esc-row button{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:5px 11px;font-size:12.5px;cursor:pointer;}
+  .esc-box .esc-err{color:var(--red);margin-top:8px;}
+  .esc-box .esc-fine{font-size:11px;color:var(--text-3);margin-top:12px;line-height:1.45;}
+  @media (max-width:1260px){ .esc-box{top:auto;bottom:12px;left:12px;right:12px;width:auto;max-height:62vh;} }
   .drawer-bg{position:fixed;inset:0;background:rgba(28,26,46,.35);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;}
   .drawer{width:min(720px,100%);max-height:calc(100vh - 48px);background:var(--card);overflow-y:auto;padding:22px 24px 26px;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.28);}
   .drawer h2{font-size:17px;margin:4px 0 6px;font-weight:600;line-height:1.3;}
@@ -147,6 +165,7 @@
       <div class="stamp" id="stamp">—</div>
     </div>
     <div class="actions">
+      <button class="esc-btn" type="button" id="escOpenBtn">Summarize issue</button>
       <span class="live-pill" id="livePill">Loading</span>
       <button class="refresh-btn" id="refreshBtn" onclick="load(true)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg> Refresh
@@ -416,6 +435,7 @@ function storyDetailHtml(t){
       (t.linkedBugsUnreadable ? ' ' + t.linkedBugsUnreadable + ' linked bug(s) could not be read from Jira.' : '') + '</div>';
   }
   return '<button type="button" class="d-close" data-close="1">Close</button>' +
+    '<button type="button" class="d-esc" data-esc="' + esc(t.key) + '">Summarize issue</button>' +
     '<div class="d-key"><a href="' + esc(t.url) + '" target="_blank" rel="noopener">' + esc(t.key) + '</a></div>' +
     '<h2>' + esc(t.summary) + '</h2>' +
     '<div class="d-meta">' + esc(t.status || '') + (t.assignee ? ' · ' + esc(t.assignee) : '') + '</div>' +
@@ -439,6 +459,121 @@ document.addEventListener('click', ev => {
   if(ev.target.id === 'drawerBg' || (ev.target.dataset && ev.target.dataset.close)) closeDrawer();
 });
 document.addEventListener('keydown', ev => { if(ev.key === 'Escape') closeDrawer(); });
+
+/* ---------- SUMMARIZE ISSUE (escalation draft) ---------- */
+const ESC_API = '/api/hygiene?view=saas-escalate';
+let escState = { key:'', context:'', result:null, busy:false, error:'' };
+
+function escDates(d){
+  if(!d) return null;
+  return { current: d.current || null, earlierDates: d.previous || [], changeCount: Array.isArray(d.changes) ? d.changes.length : (d.changes || 0), slips: d.slips || 0, pushedDays: d.pushedDays || 0 };
+}
+function escBugFacts(b){
+  const slo = BugSLO.bugSlo(b.priority, b.ageDays);
+  return { key:b.key, summary:b.summary, priority:b.priority, zone:b.zone || b._zone || null, status:b.status, assignee:b.assignee || null, ageDays:b.ageDays ?? null,
+    open: !b.done, slo: slo.state === 'none' ? null : { allowedDays: slo.slo, state: slo.state, daysLeft: slo.left } };
+}
+function escFacts(key){
+  const story = DATA.stories.find(x => x.key === key);
+  if(story){
+    return { type:'story', key:story.key, summary:story.summary, status:story.status, assignee:story.assignee || null, ageDays:story.ageDays ?? null, idleDays:story.idleDays ?? null,
+      effortStoryPoints: story.effort ?? null,
+      devForecastDate: escDates(story.devForecast), committedUatSignOffDate: escDates(story.uatCommit),
+      testCases: story.testCases ? (story.testCases.created ? 'sheet posted' : 'no sheet posted') : 'unknown',
+      riskRemark: story.remark ? story.remark.text : null,
+      linkedBugs: story.linkedBugs ? story.linkedBugs.slice(0, 30).map(escBugFacts) : null,
+      dataPulledAt: DATA.meta && DATA.meta.dataPulledAt };
+  }
+  const bug = allBugs().find(x => x.key === key);
+  if(bug){
+    return { type:'bug', ...escBugFacts(bug), idleDays:bug.idleDays ?? null, product:bug.product || null, module:bug.module || null,
+      devForecastDate: escDates(bug.devForecast), committedUatSignOffDate: escDates(bug.uatCommit),
+      riskRemark: bug.remark ? bug.remark.text : null, dataPulledAt: DATA.meta && DATA.meta.dataPulledAt };
+  }
+  for(const st of DATA.stories){
+    const lb = (st.linkedBugs || []).find(x => x.key === key);
+    if(lb) return { type:'bug', ...escBugFacts(lb), linkedToStory:{ key:st.key, summary:st.summary, status:st.status }, dataPulledAt: DATA.meta && DATA.meta.dataPulledAt };
+  }
+  return null;
+}
+function escClose(){ const e = document.getElementById('escBox'); if(e) e.remove(); }
+function escOpen(key){
+  escState = { key: key || escState.key || '', context: escState.key === key ? escState.context : '', result:null, busy:false, error:'' };
+  escRender();
+}
+function escEl(tag, attrs, text){
+  const e = document.createElement(tag);
+  Object.keys(attrs || {}).forEach(k => { if(k === 'class') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); });
+  if(text !== undefined) e.textContent = text;
+  return e;
+}
+function escCopy(text, btn){
+  const done = () => { const o = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = o; }, 1200); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, () => {}); return; }
+  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){} ta.remove();
+}
+function escRender(){
+  let box = document.getElementById('escBox');
+  if(!box){ box = escEl('div', { class:'esc-box', id:'escBox', role:'dialog', 'aria-label':'Summarize issue' }); document.body.appendChild(box); }
+  box.textContent = '';
+  const x = escEl('button', { class:'esc-x', type:'button' }, 'Close'); x.onclick = escClose;
+  box.appendChild(x);
+  box.appendChild(escEl('h3', {}, 'Summarize issue'));
+  const r = escState.result;
+  if(!r){
+    box.appendChild(escEl('div', { class:'muted' }, 'Reads the ticket details on this dashboard, then drafts a summary and an escalation email from your view.'));
+    box.appendChild(escEl('label', { for:'escKey' }, 'Ticket key'));
+    const key = escEl('input', { id:'escKey', placeholder:'SPI-123 or SPB-456', value: escState.key });
+    key.oninput = () => { escState.key = key.value.trim().toUpperCase(); };
+    box.appendChild(key);
+    box.appendChild(escEl('label', { for:'escCtx' }, 'Your context / opinion'));
+    const ctx = escEl('textarea', { id:'escCtx', maxlength:'2000', placeholder:'What is the concern? What do you want from the recipient, and by when? Who is it going to? Anything the dashboard does not show.' });
+    ctx.value = escState.context;
+    ctx.oninput = () => { escState.context = ctx.value; };
+    box.appendChild(ctx);
+    const go = escEl('button', { class:'esc-go', type:'button' }, escState.busy ? 'Drafting…' : 'Summarize');
+    go.disabled = escState.busy;
+    go.onclick = escSubmit;
+    box.appendChild(go);
+    if(escState.error) box.appendChild(escEl('div', { class:'esc-err' }, escState.error));
+  }else{
+    box.appendChild(escEl('div', { class:'muted' }, r.key + ' · from the dashboard data and your view'));
+    box.appendChild(escEl('label', {}, 'Summary'));
+    box.appendChild(escEl('div', { class:'esc-sec' }, r.summary));
+    const cs = escEl('div', { class:'esc-row' }); const b1 = escEl('button', { type:'button' }, 'Copy summary'); b1.onclick = () => escCopy(r.summary, b1); cs.appendChild(b1); box.appendChild(cs);
+    if(r.email){
+      box.appendChild(escEl('label', { for:'escSubj' }, 'Escalation email draft'));
+      const subj = escEl('input', { id:'escSubj' }); subj.value = r.subject; box.appendChild(subj);
+      const body = escEl('textarea', { class:'esc-mail', 'aria-label':'Email body' }); body.value = r.email; body.style.marginTop = '6px'; box.appendChild(body);
+      const ce = escEl('div', { class:'esc-row' }); const b2 = escEl('button', { type:'button' }, 'Copy email'); b2.onclick = () => escCopy('Subject: ' + subj.value + '\n\n' + body.value, b2); ce.appendChild(b2); box.appendChild(ce);
+    }
+    const again = escEl('div', { class:'esc-row' }); const b3 = escEl('button', { type:'button' }, 'Change context and redo'); b3.onclick = () => { escState.result = null; escRender(); }; again.appendChild(b3); box.appendChild(again);
+  }
+  box.appendChild(escEl('div', { class:'esc-fine' }, 'A draft to check before you use it. It only knows what this dashboard shows (current status, age, date changes, linked bugs, test case status, your remark), not the Jira comments or status history. Ticket details are sent to the Anthropic API to write it. Nothing is sent or saved.'));
+}
+async function escSubmit(){
+  const key = (escState.key || '').trim().toUpperCase();
+  const ctx = (escState.context || '').trim();
+  if(!key){ escState.error = 'Enter a Jira key.'; return escRender(); }
+  const facts = escFacts(key);
+  if(!facts){ escState.error = key + ' is not in the data on this page (open stories, open P1/P2 bugs, and bugs linked to a story). Check the key, or refresh.'; return escRender(); }
+  if(ctx.length < 10){ escState.error = 'Add your context or opinion first (at least a sentence).'; return escRender(); }
+  escState.busy = true; escState.error = ''; escRender();
+  try{
+    const res = await fetch(ESC_API, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ key, context: ctx, facts }) });
+    const json = await res.json().catch(() => ({}));
+    if(res.status === 401){ showLoginGate(); escState.busy = false; return; }
+    if(!res.ok) throw new Error(json.error || ('Server responded ' + res.status));
+    escState.result = json;
+  }catch(e){ escState.error = e.message; }
+  escState.busy = false; escRender();
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-esc]');
+  if(b){ escOpen(b.dataset.esc); }
+});
+document.getElementById('escOpenBtn').addEventListener('click', () => escOpen(''));
 
 /* ---------- BUGS ---------- */
 function previousDay(){
