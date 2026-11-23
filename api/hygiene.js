@@ -3,6 +3,7 @@ const { getSession } = require('../lib/session');
 const { getProgram } = require('../lib/programs');
 const { getSaasData, saveRemark } = require('../lib/saas');
 const { draftEscalation } = require('../lib/escalation');
+const { listEscalations, handleAction } = require('../lib/escalations');
 
 // Shared field list works for both stories and epics — deriveTicketFields()
 // already checks two candidate fields for Dev ETA and two for QA ETA, which
@@ -31,6 +32,7 @@ module.exports = async (req, res) => {
   const isSaas = req.query && req.query.view === 'saas';
   const isRemark = req.query && req.query.view === 'saas-remark';
   const isEscalate = req.query && req.query.view === 'saas-escalate';
+  const isEscTable = req.query && req.query.view === 'saas-escalations';
   const session = getSession(req);
   if (!session) {
     const returnTo = isSaas ? '/saas.html' : '/hygiene.html';
@@ -60,6 +62,19 @@ module.exports = async (req, res) => {
       return res.status(200).json(await draftEscalation(body));
     } catch (err) {
       console.error('[saas-escalate]', err.message);
+      return res.status(err.status || 500).json({ error: err.message });
+    }
+  }
+
+  // Tracked escalations: GET lists them, POST {action: create|bump|resolve|reopen|delete} changes one.
+  if (isEscTable) {
+    try {
+      if (req.method === 'GET') return res.status(200).json({ escalations: await listEscalations() });
+      if (req.method !== 'POST') return res.status(405).json({ error: 'Use GET or POST.' });
+      const body = req.body && typeof req.body === 'object' ? req.body : JSON.parse(req.body || '{}');
+      return res.status(200).json(await handleAction(body, session));
+    } catch (err) {
+      console.error('[saas-escalations]', err.message);
       return res.status(err.status || 500).json({ error: err.message });
     }
   }
