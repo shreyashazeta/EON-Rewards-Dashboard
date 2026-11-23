@@ -191,6 +191,7 @@
 
     <div class="panel">
       <h2 id="bugTableTitle">All open P1/P2 bugs</h2>
+      <div id="sloStrip" class="hint" style="margin:6px 0 10px"></div>
       <p class="hint">Click a tile above to filter. Age = days since created; Idle = days since last update.</p>
       <div class="filters">
         <input class="search" id="bugSearch" placeholder="Search key, summary, assignee, module…">
@@ -225,6 +226,7 @@
   </section>
 </div>
 
+<script src="/js/slo.js"></script>
 <script>
 const API = '/api/hygiene?view=saas';
 let DATA = null;
@@ -472,7 +474,7 @@ function allBugs(){
   return [
     ...DATA.bugs.prod.bugs.map(b => ({ ...b, _zone:'prod' })),
     ...DATA.bugs.uat.bugs.map(b => ({ ...b, _zone:'uat' })),
-  ];
+  ].map(b => ({ ...b, sloLeft: BugSLO.bugSlo(b.priority, b.ageDays).left }));
 }
 
 const sorters = {
@@ -496,6 +498,7 @@ const BUG_COLS = [
   { key:'key', label:'Key' }, { key:'summary', label:'Summary' }, { key:'priority', label:'Pri' },
   { key:'_zone', label:'Zone' }, { key:'status', label:'Status' }, { key:'assignee', label:'Assignee' },
   { key:'module', label:'Product / Module' }, { key:'ageDays', label:'Age (d)', num:true }, { key:'idleDays', label:'Idle (d)', num:true },
+  { key:'sloLeft', label:'SLO' },
   { key:'devSort', label:'Dev Forecast Date' }, { key:'uatSort', label:'Committed UAT Sign off Date' }, { key:'remarkText', label:'Risk remark' },
 ];
 
@@ -507,6 +510,10 @@ function renderBugTable(){
   if(qText) rows = rows.filter(b => [b.key, b.summary, b.assignee, b.module, b.product, b.status, b.devSort, b.uatSort, b.remarkText].join(' ').toLowerCase().includes(qText));
   rows = sortRows(rows, bugSort);
 
+  const sm = BugSLO.sloSummary(allBugs());
+  const strip = document.getElementById('sloStrip');
+  strip.innerHTML = 'Bug SLO: P1 within ' + BugSLO.DAYS.P1 + ' days, P2 within ' + BugSLO.DAYS.P2 + ' days of being raised (open bugs, calendar days). ' +
+    (sm.breached ? '<b style="color:var(--red)">' + sm.breached + ' past SLO</b> (P1 ' + sm.P1.breached + ' of ' + sm.P1.total + ', P2 ' + sm.P2.breached + ' of ' + sm.P2.total + ').' : '<b style="color:var(--green)">None past SLO.</b>');
   const zoneName = { prod:'Prod', uat:'UAT' };
   document.getElementById('bugTableTitle').textContent =
     (bugZone ? zoneName[bugZone] + ' · ' + (bugPri === 'all' ? 'P1 + P2' : bugPri) : 'All open P1/P2 bugs') + ' (' + rows.length + ')';
@@ -521,6 +528,7 @@ function renderBugTable(){
       <td>${esc(b.product || '')}${b.module ? '<div class="muted" style="font-size:12px">' + esc(b.module) + '</div>' : ''}</td>
       <td class="num ${b.ageDays > 30 ? 'age-hot' : ''}">${b.ageDays ?? '—'}</td>
       <td class="num ${b.idleDays > 7 ? 'age-hot' : ''}">${b.idleDays ?? '—'}</td>
+      <td>${BugSLO.sloBadge(b.priority, b.ageDays)}</td>
       <td>${dateCell(b.devForecast, 'devForecast')}</td>
       <td>${dateCell(b.uatCommit, 'uatCommit')}</td>
       <td>${remarkCell(b)}</td>
