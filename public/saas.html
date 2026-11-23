@@ -101,10 +101,35 @@
   .dt-cur{font-weight:600;color:var(--text);}
   .dt-cur.later{color:var(--red);}
   .dt-cur.earlier{color:var(--green);}
+  .dt-orig{font-weight:600;color:var(--red);}
+  .dt-fu{color:var(--text-3);}
   .dt-old{color:var(--text-3);font-size:11.5px;line-height:1.35;}
   /* story detail pop-up (centred modal) */
   td a.sum-link{font-family:inherit;font-size:13px;white-space:normal;color:var(--text);font-weight:500;}
   td a.sum-link:hover{color:var(--blue);}
+  .esc-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);background:#fff;color:var(--text);font-size:13px;font-weight:500;padding:7px 14px;border-radius:8px;cursor:pointer;}
+  .esc-btn:hover{background:#f0f1f3;}
+  .drawer .d-esc{float:right;margin-right:8px;border:1px solid var(--text);background:var(--text);color:#fff;border-radius:8px;padding:4px 10px;font-size:13px;cursor:pointer;}
+  .esc-box{position:fixed;top:20px;right:20px;width:380px;max-height:calc(100vh - 40px);overflow:auto;background:#fff;border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 40px rgba(28,26,46,.22);padding:16px 18px;z-index:80;font-size:13px;}
+  .esc-box h3{font-size:14px;font-weight:600;margin:0 0 2px;}
+  .esc-box .esc-x{float:right;border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:2px 9px;font-size:12px;cursor:pointer;}
+  .esc-box label{display:block;font-size:11.5px;font-weight:600;color:var(--text-2);margin:12px 0 4px;}
+  .esc-box input,.esc-box textarea{width:100%;box-sizing:border-box;border:1px solid var(--border-strong);border-radius:8px;padding:7px 9px;font:inherit;color:var(--text);background:#fff;}
+  .esc-box textarea{min-height:92px;resize:vertical;}
+  .esc-box textarea.esc-mail{min-height:170px;}
+  .esc-box .esc-go{margin-top:10px;border:1px solid var(--text);background:var(--text);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;}
+  .esc-box .esc-go:disabled{opacity:.55;cursor:default;}
+  .esc-box .esc-sec{border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:#fafafb;white-space:pre-wrap;line-height:1.5;}
+  .esc-box .esc-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .esc-box .esc-row button{border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:5px 11px;font-size:12.5px;cursor:pointer;}
+  .esc-box .esc-row button.esc-go{background:var(--text);color:#fff;border-color:var(--text);margin-top:0;}
+  .esc-box .esc-row button.esc-go:disabled{opacity:.55;}
+  .esc-box .esc-row button{white-space:nowrap;}
+  .esc-box .esc-track{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+  .esc-mini{white-space:nowrap;border:1px solid var(--border-strong);background:#fff;border-radius:8px;padding:3px 9px;font-size:12px;cursor:pointer;}
+  .esc-box .esc-err{color:var(--red);margin-top:8px;}
+  .esc-box .esc-fine{font-size:11px;color:var(--text-3);margin-top:12px;line-height:1.45;}
+  @media (max-width:1260px){ .esc-box{top:auto;bottom:12px;left:12px;right:12px;width:auto;max-height:62vh;} }
   .drawer-bg{position:fixed;inset:0;background:rgba(28,26,46,.35);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;}
   .drawer{width:min(720px,100%);max-height:calc(100vh - 48px);background:var(--card);overflow-y:auto;padding:22px 24px 26px;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.28);}
   .drawer h2{font-size:17px;margin:4px 0 6px;font-weight:600;line-height:1.3;}
@@ -147,6 +172,7 @@
       <div class="stamp" id="stamp">—</div>
     </div>
     <div class="actions">
+      <button class="esc-btn" type="button" id="escOpenBtn">Summarize issue</button>
       <span class="live-pill" id="livePill">Loading</span>
       <button class="refresh-btn" id="refreshBtn" onclick="load(true)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg> Refresh
@@ -159,6 +185,7 @@
   <div class="tabs">
     <button class="tab active" data-view="bugs">Bugs (SPB)<span class="n" id="nBugs"></span></button>
     <button class="tab" data-view="stories">Product stories (SPI)<span class="n" id="nStories"></span></button>
+    <button class="tab" data-view="esc">Escalations<span class="n" id="nEsc"></span></button>
   </div>
 
   <!-- ===== BUGS ===== -->
@@ -226,6 +253,17 @@
         <button class="refresh-btn" id="clearStoryFilter" style="display:none" onclick="setStoryStatus(null)">Clear filter</button>
       </div>
       <div class="tbl-wrap"><table id="storyTable"></table></div>
+    </div>
+  </section>
+  <section id="viewEsc" class="hidden">
+    <div class="panel">
+      <h2>Tracked escalations</h2>
+      <p class="hint">Added from <b>Summarize issue</b> when you answer Yes to "Track this escalation?". A bump up adds a follow up and puts the new date on top of the date of escalation. The original date is shown in red and the follow up dates in gray.</p>
+      <div class="filters">
+        <select id="escFilter" class="search" style="max-width:170px"><option value="all">All</option><option value="open" selected>Open</option><option value="resolved">Resolved</option></select>
+      </div>
+      <div class="error-box" id="escTableErr"></div>
+      <div class="tbl-wrap"><table id="escTable"></table></div>
     </div>
   </section>
 </div>
@@ -416,6 +454,7 @@ function storyDetailHtml(t){
       (t.linkedBugsUnreadable ? ' ' + t.linkedBugsUnreadable + ' linked bug(s) could not be read from Jira.' : '') + '</div>';
   }
   return '<button type="button" class="d-close" data-close="1">Close</button>' +
+    '<button type="button" class="d-esc" data-esc="' + esc(t.key) + '">Summarize issue</button>' +
     '<div class="d-key"><a href="' + esc(t.url) + '" target="_blank" rel="noopener">' + esc(t.key) + '</a></div>' +
     '<h2>' + esc(t.summary) + '</h2>' +
     '<div class="d-meta">' + esc(t.status || '') + (t.assignee ? ' · ' + esc(t.assignee) : '') + '</div>' +
@@ -439,6 +478,251 @@ document.addEventListener('click', ev => {
   if(ev.target.id === 'drawerBg' || (ev.target.dataset && ev.target.dataset.close)) closeDrawer();
 });
 document.addEventListener('keydown', ev => { if(ev.key === 'Escape') closeDrawer(); });
+
+/* ---------- SUMMARIZE ISSUE (escalation draft + optional tracking) ---------- */
+const ESC_API = '/api/hygiene?view=saas-escalate';
+const ESC_TABLE_API = '/api/hygiene?view=saas-escalations';
+const ESC_KEY = /^[A-Za-z][A-Za-z0-9]{1,9}-\d{1,7}$/;
+let escState = { step:'issue', issue:'', key:'', result:null, busy:false, error:'', noFacts:false, trackedId:null, comment:true, tracked:null };
+
+function escDates(d){
+  if(!d) return null;
+  return { current: d.current || null, earlierDates: d.previous || [], changeCount: Array.isArray(d.changes) ? d.changes.length : (d.changes || 0), slips: d.slips || 0, pushedDays: d.pushedDays || 0 };
+}
+function escBugFacts(b){
+  const slo = BugSLO.bugSlo(b.priority, b.ageDays);
+  return { key:b.key, summary:b.summary, priority:b.priority, zone:b.zone || b._zone || null, status:b.status, assignee:b.assignee || null, ageDays:b.ageDays ?? null,
+    open: !b.done, slo: slo.state === 'none' ? null : { allowedDays: slo.slo, state: slo.state, daysLeft: slo.left } };
+}
+function escFacts(key){
+  const story = DATA.stories.find(x => x.key === key);
+  if(story){
+    return { type:'story', key:story.key, summary:story.summary, status:story.status, assignee:story.assignee || null, ageDays:story.ageDays ?? null, idleDays:story.idleDays ?? null,
+      effortStoryPoints: story.effort ?? null,
+      devForecastDate: escDates(story.devForecast), committedUatSignOffDate: escDates(story.uatCommit),
+      testCases: story.testCases ? (story.testCases.created ? 'sheet posted' : 'no sheet posted') : 'unknown',
+      riskRemark: story.remark ? story.remark.text : null,
+      linkedBugs: story.linkedBugs ? story.linkedBugs.slice(0, 30).map(escBugFacts) : null,
+      dataPulledAt: DATA.meta && DATA.meta.dataPulledAt };
+  }
+  const bug = allBugs().find(x => x.key === key);
+  if(bug){
+    return { type:'bug', ...escBugFacts(bug), idleDays:bug.idleDays ?? null, product:bug.product || null, module:bug.module || null,
+      devForecastDate: escDates(bug.devForecast), committedUatSignOffDate: escDates(bug.uatCommit),
+      riskRemark: bug.remark ? bug.remark.text : null, dataPulledAt: DATA.meta && DATA.meta.dataPulledAt };
+  }
+  for(const st of DATA.stories){
+    const lb = (st.linkedBugs || []).find(x => x.key === key);
+    if(lb) return { type:'bug', ...escBugFacts(lb), linkedToStory:{ key:st.key, summary:st.summary, status:st.status }, dataPulledAt: DATA.meta && DATA.meta.dataPulledAt };
+  }
+  return null;
+}
+function escClose(){ const e = document.getElementById('escBox'); if(e) e.remove(); }
+function escOpen(key){
+  escState = { step:'issue', issue:'', key: key || '', result:null, busy:false, error:'', noFacts:false, trackedId:null, comment:true, tracked:null };
+  escRender();
+}
+function escEl(tag, attrs, text){
+  const e = document.createElement(tag);
+  Object.keys(attrs || {}).forEach(k => { if(k === 'class') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); });
+  if(text !== undefined) e.textContent = text;
+  return e;
+}
+function escCopy(text, btn){
+  const done = () => { const o = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = o; }, 1200); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, () => {}); return; }
+  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){} ta.remove();
+}
+function escBtn(label, fn, cls){ const b = escEl('button', { type:'button', class: cls || '' }, label); b.onclick = fn; return b; }
+function escRender(){
+  let box = document.getElementById('escBox');
+  if(!box){ box = escEl('div', { class:'esc-box', id:'escBox', role:'dialog', 'aria-label':'Summarize issue' }); document.body.appendChild(box); }
+  box.textContent = '';
+  box.appendChild(escBtn('Close', escClose, 'esc-x'));
+  box.appendChild(escEl('h3', {}, 'Summarize issue'));
+  const st = escState;
+  if(st.step === 'issue'){
+    box.appendChild(escEl('div', { class:'muted' }, 'Step 1 of 2'));
+    box.appendChild(escEl('label', { for:'escIssue' }, 'What is the issue?'));
+    const ta = escEl('textarea', { id:'escIssue', maxlength:'2000', placeholder:'What is the problem, who is affected, what is blocked, what do you want from the recipient and by when? Include your own view.' });
+    ta.value = st.issue; ta.oninput = () => { st.issue = ta.value; };
+    box.appendChild(ta);
+    box.appendChild(escBtn('Next', () => {
+      if(st.issue.trim().length < 10){ st.error = 'Describe the issue first (at least a sentence).'; return escRender(); }
+      st.error = ''; st.step = 'ticket'; escRender();
+    }, 'esc-go'));
+  }else if(st.step === 'ticket'){
+    box.appendChild(escEl('div', { class:'muted' }, 'Step 2 of 2'));
+    box.appendChild(escEl('label', { for:'escKey' }, 'Which ticket is this about?'));
+    const key = escEl('input', { id:'escKey', placeholder:'e.g. SPI-123, TRC-45, HINU-7' });
+    key.value = st.key === 'N/A' ? '' : st.key; key.oninput = () => { st.key = key.value.trim().toUpperCase(); };
+    box.appendChild(key);
+    box.appendChild(escEl('div', { class:'esc-fine', style:'margin-top:6px' }, 'The dashboard can read SPI and SPB tickets. For any other board, or if there is no ticket, the draft uses only what you wrote.'));
+    const row = escEl('div', { class:'esc-row' });
+    row.appendChild(escBtn('Back', () => { st.error = ''; st.step = 'issue'; escRender(); }));
+    row.appendChild(escBtn('No ticket (N/A)', () => { st.key = 'N/A'; escSubmit(); }));
+    const go = escBtn(st.busy ? 'Drafting…' : 'Summarize', escSubmit, 'esc-go'); go.disabled = st.busy; go.style.marginTop = '0';
+    row.appendChild(go); box.appendChild(row);
+  }else if(st.step === 'result'){
+    const r = st.result;
+    const k = st.key && st.key !== 'N/A' ? st.key : null;
+    box.appendChild(escEl('div', { class:'muted' }, (k || 'No ticket') + (st.noFacts ? (k ? ' is not on this page, so this draft uses only what you wrote.' : ': this draft uses only what you wrote.') : ' · from the dashboard data and what you wrote')));
+    box.appendChild(escEl('label', {}, 'Summary'));
+    box.appendChild(escEl('div', { class:'esc-sec' }, r.summary));
+    const cs = escEl('div', { class:'esc-row' }); const b1 = escEl('button', { type:'button' }, 'Copy summary'); b1.onclick = () => escCopy(r.summary, b1); cs.appendChild(b1); box.appendChild(cs);
+    if(r.email){
+      box.appendChild(escEl('label', { for:'escSubj' }, 'Escalation email draft'));
+      const subj = escEl('input', { id:'escSubj' }); subj.value = r.subject; subj.oninput = () => { r.subject = subj.value; }; box.appendChild(subj);
+      const body = escEl('textarea', { class:'esc-mail', 'aria-label':'Email body' }); body.value = r.email; body.style.marginTop = '6px'; box.appendChild(body);
+      const ce = escEl('div', { class:'esc-row' }); const b2 = escEl('button', { type:'button' }, 'Copy email'); b2.onclick = () => escCopy('Subject: ' + subj.value + '\n\n' + body.value, b2); ce.appendChild(b2); box.appendChild(ce);
+    }
+    const track = escEl('div', { class:'esc-track' });
+    track.appendChild(escEl('div', { style:'font-weight:600;margin-bottom:6px' }, 'Track this escalation?'));
+    if(k){
+      const lab = escEl('label', { style:'display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0 0 8px;color:var(--text)' });
+      const cb = escEl('input', { type:'checkbox', id:'escComment', style:'width:auto;margin-top:2px' }); cb.checked = st.comment; cb.onchange = () => { st.comment = cb.checked; };
+      lab.appendChild(cb); lab.appendChild(escEl('span', {}, 'If I track it, also add a comment on ' + k + ' with the email subject and today\'s date (visible to everyone who can see the ticket).'));
+      track.appendChild(lab);
+    }
+    const yn = escEl('div', { class:'esc-row', style:'margin-top:0' });
+    const yes = escBtn(st.busy ? 'Saving…' : 'Yes, track it', escTrack, 'esc-go'); yes.style.marginTop = '0'; yes.disabled = st.busy;
+    yn.appendChild(yes);
+    const no = escBtn('No', escClose); no.disabled = st.busy; yn.appendChild(no);
+    track.appendChild(yn);
+    track.appendChild(escEl('div', { class:'esc-fine', style:'margin-top:6px' }, 'No: nothing is stored and nothing is written to Jira. Yes: the issue, ticket and summary are saved in the Escalations tab.'));
+    box.appendChild(track);
+    const back = escEl('div', { class:'esc-row' }); back.appendChild(escBtn('Change the issue or ticket and redo', () => { st.result = null; st.error = ''; st.step = 'issue'; escRender(); })); box.appendChild(back);
+  }else if(st.step === 'tracked'){
+    const jc = st.tracked && st.tracked.jiraComment;
+    box.appendChild(escEl('div', { class:'esc-sec', style:'margin-top:10px' }, 'Tracked. It is now in the Escalations tab as Open, with today as the date of escalation.' +
+      (jc ? (jc.status === 'posted' ? '\n\nComment added on ' + st.tracked.ticket + '.' : '\n\nThe Jira comment on ' + st.tracked.ticket + ' did not go through: ' + jc.error + '. You can retry it from the Escalations tab.') : '')));
+    const row = escEl('div', { class:'esc-row' });
+    row.appendChild(escBtn('Open Escalations tab', () => { escClose(); const d = document.getElementById('drawerBg'); if(d) d.remove(); document.querySelector('.tab[data-view="esc"]').click(); }, 'esc-go'));
+    row.appendChild(escBtn('Done', escClose));
+    box.appendChild(row);
+  }
+  if(st.error) box.appendChild(escEl('div', { class:'esc-err' }, st.error));
+  box.appendChild(escEl('div', { class:'esc-fine' }, 'A draft to check before you use it. It only knows what you wrote and, for SPI/SPB tickets, what this dashboard shows (status, age, date changes, linked bugs, test case status, your remark), not the Jira comments or status history. These details are sent to the Anthropic API to write the draft.'));
+}
+async function escPost(url, payload){
+  const res = await fetch(url, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+  const json = await res.json().catch(() => ({}));
+  if(res.status === 401){ showLoginGate(); throw new Error('Please sign in again.'); }
+  if(!res.ok) throw new Error(json.error || ('Server responded ' + res.status));
+  return json;
+}
+async function escSubmit(){
+  const st = escState;
+  const raw = (st.key || '').trim().toUpperCase();
+  const none = !raw || raw === 'N/A' || raw === 'NA';
+  if(!none && !ESC_KEY.test(raw)){ st.error = 'Use a key like SPI-123 or TRC-45, or choose No ticket (N/A).'; return escRender(); }
+  st.key = none ? 'N/A' : raw;
+  const facts = none ? null : escFacts(raw);
+  st.noFacts = !facts;
+  st.busy = true; st.error = ''; escRender();
+  try{
+    const payload = { key: none ? null : raw, issue: st.issue.trim() };
+    if(facts) payload.facts = facts;
+    st.result = await escPost(ESC_API, payload);
+    st.step = 'result';
+  }catch(e){ st.error = e.message; }
+  st.busy = false; escRender();
+}
+async function escTrack(){
+  const st = escState;
+  st.busy = true; st.error = ''; escRender();
+  try{
+    const out = await escPost(ESC_TABLE_API, { action:'create', ticket: st.key === 'N/A' ? null : st.key, issue: st.issue.trim(), summary: st.result.summary, subject: st.result.subject, commentOnTicket: !!(st.comment && st.key && st.key !== 'N/A') });
+    st.trackedId = out.escalation.id; st.tracked = out.escalation; st.step = 'tracked';
+    await loadEsc();
+  }catch(e){ st.error = e.message; }
+  st.busy = false; escRender();
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-esc]');
+  if(b){ escOpen(b.dataset.esc); }
+});
+document.getElementById('escOpenBtn').addEventListener('click', () => escOpen(''));
+
+/* ---------- ESCALATIONS TAB ---------- */
+let ESCS = [];
+let escEdit = null;   // { id, mode: 'bump' | 'resolve' }
+function escDateStack(dates){
+  // dates are newest first; the last one is the original date of escalation (red), the rest are follow ups (gray)
+  const last = dates.length - 1;
+  return dates.map((d, i) => i === last
+    ? '<div class="dt-orig" title="Original date of escalation">' + esc(d) + '</div>'
+    : '<div class="dt-fu" title="Follow up">' + esc(d) + '</div>').join('');
+}
+function escTicketHtml(t){
+  if(!t) return '<span class="muted">No ticket</span>';
+  const onSite = /^(SPI|SPB)-/.test(t) && DATA && DATA.meta && DATA.meta.site;
+  return onSite ? '<a href="' + esc(DATA.meta.site) + '/browse/' + esc(t) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : '<b>' + esc(t) + '</b>';
+}
+function escJiraLine(e){
+  if(!e.ticket) return '';
+  const jc = e.jiraComment;
+  if(jc && jc.status === 'posted') return '<div class="muted" style="margin-top:4px;font-size:12px">Comment added on ' + esc(e.ticket) + '</div>';
+  return '<div style="margin-top:4px;font-size:12px">' + (jc && jc.status === 'failed' ? '<span style="color:var(--red)">Jira comment failed: ' + esc(jc.error) + '</span> ' : '<span class="muted">No Jira comment yet</span> ') +
+    '<button type="button" class="esc-mini" data-eact="comment" data-id="' + esc(e.id) + '">' + (jc ? 'Retry comment' : 'Add comment to ' + esc(e.ticket)) + '</button></div>';
+}
+function renderEscTable(){
+  const f = document.getElementById('escFilter').value;
+  const rows = ESCS.filter(e => f === 'all' || e.status === f);
+  document.getElementById('nEsc').textContent = ESCS.filter(e => e.status === 'open').length || '';
+  const head = '<tr><th>Escalation</th><th>Date of escalation</th><th>Status</th><th>Date of resolution</th><th>Follow ups</th></tr>';
+  const body = rows.map(e => {
+    const editing = escEdit && escEdit.id === e.id ? escEdit.mode : null;
+    const today = new Date().toLocaleDateString('en-CA');
+    const statusCell = (e.status === 'open' ? '<span style="color:var(--amber);font-weight:600">Open</span>' : '<span style="color:var(--green);font-weight:600">Resolved</span>') +
+      (editing === 'resolve'
+        ? '<div class="rm"><label style="margin:6px 0 2px">Date of resolution</label><input type="date" class="esc-date" max="' + esc(today) + '" value="' + esc(today) + '"><div><button type="button" class="primary" data-eact="resolve-save" data-id="' + esc(e.id) + '">Save</button> <button type="button" data-eact="cancel">Cancel</button></div><div class="rm-err"></div></div>'
+        : '<div style="margin-top:6px"><button type="button" class="esc-mini" data-eact="' + (e.status === 'open' ? 'resolve' : 'reopen') + '" data-id="' + esc(e.id) + '">' + (e.status === 'open' ? 'Mark resolved' : 'Reopen') + '</button></div>');
+    const fu = e.followUps.length ? e.followUps.map((x, i) => '<div style="margin-bottom:4px"><span class="muted">#' + (i + 1) + ' · ' + esc(x.date) + '</span>' + (x.note ? '<div>' + esc(x.note) + '</div>' : '') + '</div>').join('') : '<span class="muted">None yet</span>';
+    const fuCell = fu + (editing === 'bump'
+      ? '<div class="rm"><textarea maxlength="600" class="esc-note" placeholder="What did you follow up on, and what was the response? (optional)"></textarea><div><button type="button" class="primary" data-eact="bump-save" data-id="' + esc(e.id) + '">Save follow up</button> <button type="button" data-eact="cancel">Cancel</button></div><div class="rm-err"></div></div>'
+      : (e.status === 'open' ? '<div style="margin-top:6px"><button type="button" class="esc-mini" data-eact="bump" data-id="' + esc(e.id) + '">Bump up</button></div>' : ''));
+    return '<tr data-id="' + esc(e.id) + '"><td class="sum">' + escTicketHtml(e.ticket) + '<div style="white-space:pre-wrap;margin-top:2px">' + esc(e.issue) + '</div>' +
+      (e.summary ? '<details style="margin-top:4px"><summary class="muted" style="cursor:pointer">Summary</summary><div style="white-space:pre-wrap;margin-top:4px">' + esc(e.summary) + '</div></details>' : '') +
+      escJiraLine(e) +
+      '<div style="margin-top:4px"><button type="button" class="esc-mini" data-eact="delete" data-id="' + esc(e.id) + '">Delete</button></div></td>' +
+      '<td>' + escDateStack(e.escalatedOn) + '</td><td>' + statusCell + '</td><td>' + (e.resolvedOn ? esc(e.resolvedOn) : '<span class="muted">—</span>') + '</td><td>' + fuCell + '</td></tr>';
+  }).join('');
+  document.getElementById('escTable').innerHTML = head + (body || '<tr class="empty-row"><td colspan="5">' + (ESCS.length ? 'No escalations match this filter.' : 'No tracked escalations yet. Use Summarize issue and answer Yes to track one.') + '</td></tr>');
+}
+async function loadEsc(){
+  const err = document.getElementById('escTableErr');
+  try{
+    const res = await fetch(ESC_TABLE_API, { credentials:'include', cache:'no-store' });
+    const json = await res.json().catch(() => ({}));
+    if(res.status === 401){ showLoginGate(); return; }
+    if(!res.ok) throw new Error(json.error || ('Server responded ' + res.status));
+    ESCS = json.escalations || []; err.style.display = 'none';
+  }catch(e){ err.textContent = 'Could not load escalations: ' + e.message; err.style.display = 'block'; }
+  renderEscTable();
+}
+async function escAct(action, payload, errBox){
+  try{
+    const out = await escPost(ESC_TABLE_API, { action, ...payload });
+    escEdit = null;
+    if(out.escalation){ const i = ESCS.findIndex(x => x.id === out.escalation.id); if(i >= 0) ESCS[i] = out.escalation; }
+    await loadEsc();
+  }catch(e){ if(errBox) errBox.textContent = e.message; else { const err = document.getElementById('escTableErr'); err.textContent = e.message; err.style.display = 'block'; } }
+}
+document.getElementById('escTable').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-eact]'); if(!b) return;
+  const id = b.dataset.id, act = b.dataset.eact, tr = b.closest('tr');
+  const errBox = tr && tr.querySelector('.rm-err');
+  if(act === 'cancel'){ escEdit = null; return renderEscTable(); }
+  if(act === 'bump' || act === 'resolve'){ escEdit = { id, mode: act }; return renderEscTable(); }
+  if(act === 'bump-save') return escAct('bump', { id, note: tr.querySelector('.esc-note').value }, errBox);
+  if(act === 'resolve-save') return escAct('resolve', { id, date: tr.querySelector('.esc-date').value }, errBox);
+  if(act === 'reopen') return escAct('reopen', { id });
+  if(act === 'comment'){ b.disabled = true; return escAct('comment', { id }, null); }
+  if(act === 'delete'){ if(confirm('Delete this escalation and its follow ups? This cannot be undone.')) return escAct('delete', { id }).then(() => { ESCS = ESCS.filter(x => x.id !== id); renderEscTable(); }); }
+});
+document.getElementById('escFilter').addEventListener('change', renderEscTable);
 
 /* ---------- BUGS ---------- */
 function previousDay(){
@@ -662,6 +946,7 @@ function render(){
   document.getElementById('nStories').textContent = DATA.stories.length;
   renderTiles(); renderSlo(); renderTrend(); renderBugTable(); renderMethod();
   renderStoryTiles(); renderStoryTable();
+  loadEsc();
 }
 
 /* ---------- wiring ---------- */
@@ -669,6 +954,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
   document.getElementById('viewBugs').classList.toggle('hidden', t.dataset.view !== 'bugs');
   document.getElementById('viewStories').classList.toggle('hidden', t.dataset.view !== 'stories');
+  document.getElementById('viewEsc').classList.toggle('hidden', t.dataset.view !== 'esc');
 }));
 document.querySelectorAll('#trendToggle button').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('#trendToggle button').forEach(x => x.classList.toggle('active', x === b));
