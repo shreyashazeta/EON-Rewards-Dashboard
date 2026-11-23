@@ -101,6 +101,8 @@
   .dt-cur{font-weight:600;color:var(--text);}
   .dt-cur.later{color:var(--red);}
   .dt-cur.earlier{color:var(--green);}
+  .dt-orig{font-weight:600;color:var(--red);}
+  .dt-fu{color:var(--text-3);}
   .dt-old{color:var(--text-3);font-size:11.5px;line-height:1.35;}
   /* story detail pop-up (centred modal) */
   td a.sum-link{font-family:inherit;font-size:13px;white-space:normal;color:var(--text);font-weight:500;}
@@ -256,7 +258,7 @@
   <section id="viewEsc" class="hidden">
     <div class="panel">
       <h2>Tracked escalations</h2>
-      <p class="hint">Added from <b>Summarize issue</b> when you answer Yes to "Track this escalation?". A bump up adds a follow up and puts the new date on top of the date of escalation, keeping the earlier dates struck through.</p>
+      <p class="hint">Added from <b>Summarize issue</b> when you answer Yes to "Track this escalation?". A bump up adds a follow up and puts the new date on top of the date of escalation. The original date is shown in red and the follow up dates in gray.</p>
       <div class="filters">
         <select id="escFilter" class="search" style="max-width:170px"><option value="all">All</option><option value="open" selected>Open</option><option value="resolved">Resolved</option></select>
       </div>
@@ -647,7 +649,11 @@ document.getElementById('escOpenBtn').addEventListener('click', () => escOpen(''
 let ESCS = [];
 let escEdit = null;   // { id, mode: 'bump' | 'resolve' }
 function escDateStack(dates){
-  return '<div class="dt-cur">' + esc(dates[0]) + '</div>' + dates.slice(1).map(d => '<div class="dt-old"><s>' + esc(d) + '</s></div>').join('');
+  // dates are newest first; the last one is the original date of escalation (red), the rest are follow ups (gray)
+  const last = dates.length - 1;
+  return dates.map((d, i) => i === last
+    ? '<div class="dt-orig" title="Original date of escalation">' + esc(d) + '</div>'
+    : '<div class="dt-fu" title="Follow up">' + esc(d) + '</div>').join('');
 }
 function escTicketHtml(t){
   if(!t) return '<span class="muted">No ticket</span>';
