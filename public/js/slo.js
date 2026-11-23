@@ -44,6 +44,16 @@
     });
     return out;
   }
-  g.BugSLO = { DAYS: BUG_SLO_DAYS, daysSince: daysSince, bugSlo: bugSlo, sloText: sloText, sloBadge: sloBadge, sloSummary: sloSummary };
+  // bugs: [{priority, ageDays}] -> how many are within SLO vs past it (P1 and P2 only)
+  function sloCounts(bugs) {
+    var out = { within: 0, breached: 0, total: 0 };
+    bugs.forEach(function (b) {
+      if (!BUG_SLO_DAYS[b.priority] || b.ageDays == null) return; // unknown age is not claimed as within SLO
+      out.total++;
+      if (bugSlo(b.priority, b.ageDays).state === 'breached') out.breached++; else out.within++;
+    });
+    return out;
+  }
+  g.BugSLO = { sloCounts: sloCounts, DAYS: BUG_SLO_DAYS, daysSince: daysSince, bugSlo: bugSlo, sloText: sloText, sloBadge: sloBadge, sloSummary: sloSummary };
   if (typeof module !== 'undefined') module.exports = g.BugSLO;
 })(typeof window !== 'undefined' ? window : globalThis);
