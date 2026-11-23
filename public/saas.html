@@ -116,6 +116,7 @@
   .esc-box label{display:block;font-size:11.5px;font-weight:600;color:var(--text-2);margin:12px 0 4px;}
   .esc-box input,.esc-box textarea{width:100%;box-sizing:border-box;border:1px solid var(--border-strong);border-radius:8px;padding:7px 9px;font:inherit;color:var(--text);background:#fff;}
   .esc-box textarea{min-height:92px;resize:vertical;}
+  .esc-box textarea.esc-sumbox{min-height:130px;}
   .esc-box textarea.esc-mail{min-height:170px;}
   .esc-box .esc-go{margin-top:10px;border:1px solid var(--text);background:var(--text);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;}
   .esc-box .esc-go:disabled{opacity:.55;cursor:default;}
@@ -269,6 +270,7 @@
 </div>
 
 <script src="/js/slo.js"></script>
+<script src="/js/escalation-template.js"></script>
 <script>
 const API = '/api/hygiene?view=saas';
 let DATA = null;
@@ -483,6 +485,11 @@ document.addEventListener('keydown', ev => { if(ev.key === 'Escape') closeDrawer
 const ESC_API = '/api/hygiene?view=saas-escalate';
 const ESC_TABLE_API = '/api/hygiene?view=saas-escalations';
 const ESC_KEY = /^[A-Za-z][A-Za-z0-9]{1,9}-\d{1,7}$/;
+let escAiPromise = null;
+function escAi(){
+  if(!escAiPromise) escAiPromise = fetch('/api/config', { credentials:'include' }).then(r => r.ok ? r.json() : {}).then(j => !!j.aiSummaryEnabled).catch(() => false);
+  return escAiPromise;
+}
 let escState = { step:'issue', issue:'', key:'', result:null, busy:false, error:'', noFacts:false, trackedId:null, comment:true, tracked:null };
 
 function escDates(d){
@@ -568,9 +575,14 @@ function escRender(){
     const r = st.result;
     const k = st.key && st.key !== 'N/A' ? st.key : null;
     box.appendChild(escEl('div', { class:'muted' }, (k || 'No ticket') + (st.noFacts ? (k ? ' is not on this page, so this draft uses only what you wrote.' : ': this draft uses only what you wrote.') : ' · from the dashboard data and what you wrote')));
-    box.appendChild(escEl('label', {}, 'Summary'));
-    box.appendChild(escEl('div', { class:'esc-sec' }, r.summary));
-    const cs = escEl('div', { class:'esc-row' }); const b1 = escEl('button', { type:'button' }, 'Copy summary'); b1.onclick = () => escCopy(r.summary, b1); cs.appendChild(b1); box.appendChild(cs);
+    if(r.mode === 'template') box.appendChild(escEl('div', { class:'esc-fine', style:'margin-top:4px' }, 'Template draft: AI drafting is not set up, so this arranges your words and the dashboard facts without rewriting them. Edit anything below.'));
+    box.appendChild(escEl('label', { for:'escSum' }, 'Summary'));
+    const sum = escEl('textarea', { id:'escSum', class:'esc-sumbox', 'aria-label':'Summary' }); sum.value = r.summary; sum.oninput = () => { r.summary = sum.value; };
+    box.appendChild(sum);
+    const cs = escEl('div', { class:'esc-row' }); const b1 = escEl('button', { type:'button' }, 'Copy summary'); b1.onclick = () => escCopy(r.summary, b1); cs.appendChild(b1);
+    if(r.mode === 'template'){ const bp = escEl('button', { type:'button', id:'escPromptBtn' }, 'Copy as a prompt for Claude'); bp.onclick = () => escCopy(EscTemplate.prompt({ key: st.key && st.key !== 'N/A' ? st.key : null, issue: st.issue.trim(), facts: st.key && st.key !== 'N/A' ? escFacts(st.key) : null }), bp); cs.appendChild(bp); }
+    box.appendChild(cs);
+    if(r.mode === 'template') box.appendChild(escEl('div', { class:'esc-fine', style:'margin-top:4px' }, 'Want better wording? Paste that prompt into your own Claude chat, then paste its email back into the box below.'));
     if(r.email){
       box.appendChild(escEl('label', { for:'escSubj' }, 'Escalation email draft'));
       const subj = escEl('input', { id:'escSubj' }); subj.value = r.subject; subj.oninput = () => { r.subject = subj.value; }; box.appendChild(subj);
@@ -603,7 +615,8 @@ function escRender(){
     box.appendChild(row);
   }
   if(st.error) box.appendChild(escEl('div', { class:'esc-err' }, st.error));
-  box.appendChild(escEl('div', { class:'esc-fine' }, 'A draft to check before you use it. It only knows what you wrote and, for SPI/SPB tickets, what this dashboard shows (status, age, date changes, linked bugs, test case status, your remark), not the Jira comments or status history. These details are sent to the Anthropic API to write the draft.'));
+  const tmpl = st.result && st.result.mode === 'template';
+  box.appendChild(escEl('div', { class:'esc-fine' }, 'A draft to check before you use it. It only knows what you wrote and, for SPI/SPB tickets, what this dashboard shows (status, age, date changes, linked bugs, test case status, your remark), not the Jira comments or status history. ' + (tmpl ? 'Nothing is sent to an AI service.' : 'These details are sent to the Anthropic API to write the draft.')));
 }
 async function escPost(url, payload){
   const res = await fetch(url, { method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
@@ -622,9 +635,16 @@ async function escSubmit(){
   st.noFacts = !facts;
   st.busy = true; st.error = ''; escRender();
   try{
-    const payload = { key: none ? null : raw, issue: st.issue.trim() };
+    const issue = st.issue.trim();
+    const payload = { key: none ? null : raw, issue };
     if(facts) payload.facts = facts;
-    st.result = await escPost(ESC_API, payload);
+    let out = null;
+    if(await escAi()){
+      try{ out = await escPost(ESC_API, payload); out.mode = 'ai'; }
+      catch(e){ if(!/not set up/i.test(e.message)) throw e; }
+    }
+    if(!out) out = EscTemplate.build({ key: payload.key, issue, facts });
+    st.result = out;
     st.step = 'result';
   }catch(e){ st.error = e.message; }
   st.busy = false; escRender();
